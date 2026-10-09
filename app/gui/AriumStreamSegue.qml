@@ -19,7 +19,10 @@ Item {
         // and is given a moment to get there behind this black screen before it shows.
         if (arium.takeLeftByMiddleButton() && !problem) {
             arium.note("left with the middle button; the page is sent to the running game's screen")
-            ariumWeb.item.go("/playing")
+            // (This screen is made by AriumWeb.qml, where "ariumWeb" is that page itself; from
+            // main.qml's side the same name is the Loader that holds it.)
+            var page = ariumWeb.item ? ariumWeb.item : ariumWeb
+            page.go("/playing")
             leaveTimer.start()
             return
         }
