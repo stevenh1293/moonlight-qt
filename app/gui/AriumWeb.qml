@@ -17,6 +17,7 @@ Item {
         "var fresh=false;try{if(localStorage.getItem('arium.moonlight')!=='yes'){localStorage.setItem('arium.moonlight','yes');fresh=true;}}catch(e){}" +
         "if(window.navigation){navigation.addEventListener('navigate',function(e){" +
         "if(String(e.destination.url).indexOf('arium-play:')===0){if(e.cancelable)e.preventDefault();window.__ariumPlay++;}});}" +
+        "window.addEventListener('keydown',function(e){if((e.ctrlKey&&(e.key==='q'||e.key==='Q'))||(e.altKey&&e.key==='F4'))window.__ariumExit=1;},true);" +
         "if(fresh){location.reload();return 'marked, reloading';}" +
         "return window.navigation?'hooked':'no navigation api';})()"
 
@@ -78,8 +79,15 @@ Item {
         interval: 150
         repeat: true
         running: ariumWeb.visible
-        onTriggered: web.runJavaScript("window.__ariumPlay||0", function(result) {
-            var n = Number(result) || 0
+        // The page asks to leave the app by setting __ariumExit (its menu's Exit, or Ctrl+Q)
+        onTriggered: web.runJavaScript("(window.__ariumPlay||0)+','+(window.__ariumExit||0)", function(result) {
+            var parts = String(result).split(",")
+            if (Number(parts[1]) > 0) {
+                arium.note("exit asked by the page")
+                Qt.quit()
+                return
+            }
+            var n = Number(parts[0]) || 0
             if (n > playsSeen) {
                 playsSeen = n
                 playAsked("page")
