@@ -52,7 +52,8 @@ Item {
     Connections {
         target: SdlGamepadKeyNavigation
         function onAriumPress(name) {
-            if (pressesNoted < 40) {
+            arium.parkPointer()
+            if (pressesNoted < 40 && name.indexOf("scroll:") !== 0) {
                 pressesNoted++
                 arium.note("press: " + name + (name === "connected" ? " -> " + SdlGamepadKeyNavigation.describeGamepads() : ""))
             }

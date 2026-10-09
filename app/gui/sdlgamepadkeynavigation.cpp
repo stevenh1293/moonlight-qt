@@ -193,6 +193,15 @@ void SdlGamepadKeyNavigation::pollForArium()
         else if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_DPAD_RIGHT) || x > 20000) direction = 3;
         if (direction != -1) break;
     }
+    // The right stick scrolls the page: how far it leans, every poll while it is held
+    for (auto gc : std::as_const(m_Gamepads)) {
+        short lean = SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_RIGHTY);
+        if (inFront && (lean > 6500 || lean < -6500)) {
+            emit ariumPress(QString("scroll:%1").arg(lean / 32767.0, 0, 'f', 2));
+            break;
+        }
+    }
+
     Uint32 now = SDL_GetTicks();
     if (direction != m_AriumDirection) {
         m_AriumDirection = direction;

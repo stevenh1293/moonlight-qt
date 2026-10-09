@@ -9,6 +9,9 @@
 #include <QTextStream>
 #include <QStandardPaths>
 #include <QDir>
+#include <QCursor>
+#include <QGuiApplication>
+#include <QScreen>
 
 #include "backend/computermanager.h"
 #include "backend/nvcomputer.h"
@@ -89,6 +92,16 @@ public:
     }
 
     Q_INVOKABLE QString problem() const { return m_Problem; }
+
+    // Puts the mouse pointer in the bottom right corner of the screen it is on, where it cannot
+    // be seen or rest on anything, when a controller is picked up. Moving the mouse brings it back.
+    Q_INVOKABLE void parkPointer()
+    {
+        QScreen* screen = QGuiApplication::screenAt(QCursor::pos());
+        if (screen == nullptr) screen = QGuiApplication::primaryScreen();
+        QPoint corner = screen->geometry().bottomRight();
+        if (QCursor::pos() != corner) QCursor::setPos(screen, corner);
+    }
 
     // One line per event, so a run can be read afterwards without a debugger
     Q_INVOKABLE void note(const QString& text)
