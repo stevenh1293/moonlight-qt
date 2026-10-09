@@ -24,7 +24,7 @@ Item {
         "x.style.cssText='position:fixed;top:10px;right:14px;z-index:2147483647;padding:9px 16px;border-radius:999px;border:1px solid rgba(255,255,255,.4);background:rgba(20,23,29,.9);color:#e9ebf0;font:600 15px system-ui,sans-serif;cursor:pointer';" +
         "x.onclick=function(){window.__ariumExit=1;};document.documentElement.appendChild(x);" +
         "if(fresh){location.reload();return 'marked, reloading';}" +
-        "return window.navigation?'hooked':'no navigation api';})()"
+        "return (window.navigation?'hooked':'no navigation api')+' | secure context: '+window.isSecureContext+' | getGamepads: '+(typeof navigator.getGamepads);})()"
 
     // What the page itself does when Play is pressed (apps/web/src/lib/moonlight.ts)
     readonly property string pressPlay: "(function(){var a=document.createElement('a');a.href='arium-play://go';a.click();return 'pressed';})()"
@@ -54,6 +54,7 @@ Item {
                 arium.note("loaded " + request.url)
                 runJavaScript(hook, function(result) {
                     arium.note("hook: " + result)
+                    padReport.restart()
                     if (arium.testPlayAfter > 0 && result !== "marked, reloading" && !testPlay.done) {
                         testPlay.done = true
                         testPlay.start()
@@ -71,6 +72,20 @@ Item {
                 playAsked("address")
             }
         }
+    }
+
+    // What the page can see of the controllers, noted now and then for the log
+    Timer {
+        id: padReport
+        interval: 5000
+        repeat: true
+        property string last: ""
+        onTriggered: web.runJavaScript("(function(){try{var p=[].slice.call(navigator.getGamepads()).filter(Boolean);return p.length+' pad(s): '+p.map(function(g){return g.id+' mapping='+g.mapping+' buttons='+g.buttons.length+' pressed='+g.buttons.map(function(b,i){return b.pressed?i:''}).filter(String).join('+')}).join(' ; ')+' | focus: '+document.hasFocus()}catch(e){return 'error: '+e}})()", function(result) {
+            if (result !== last) {
+                last = result
+                arium.note("controllers: " + result)
+            }
+        })
     }
 
     Timer {
