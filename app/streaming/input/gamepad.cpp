@@ -288,6 +288,23 @@ void SdlInputHandler::handleControllerButtonEvent(SDL_ControllerButtonEvent* eve
         return;
     }
 
+    // PROTOTYPE (Arium): the middle button is the app's own. One press leaves the game and
+    // returns to the library; the game is not closed, and is not sent the button.
+    if (event->button == SDL_CONTROLLER_BUTTON_GUIDE && qgetenv("ARIUM_GUIDE_TO_GAME") != "1") {
+        if (event->state == SDL_PRESSED) {
+            SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Middle button: leaving the game");
+
+            SDL_Event quit;
+            quit.type = SDL_QUIT;
+            quit.quit.timestamp = SDL_GetTicks();
+            SDL_PushEvent(&quit);
+
+            // Nothing is left held down on the game's side
+            LiSendMultiControllerEvent(state->index, m_GamepadMask, 0, 0, 0, 0, 0, 0, 0);
+        }
+        return;
+    }
+
     if (m_SwapFaceButtons) {
         switch (event->button) {
         case SDL_CONTROLLER_BUTTON_A:
