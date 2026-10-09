@@ -72,7 +72,7 @@ Item {
             var name = left.shift()
             leftChanged()
             web.runJavaScript("window.__ariumPad&&window.__ariumPad('" + name + "')")
-            web.runJavaScript("(function(){var r=document.querySelector('.ring-4');return (window.__ariumPad?'':'NO HANDLER ')+(r?(r.innerText.split('\\n')[0]||r.querySelector('img')&&r.querySelector('img').src.split('/')[5]):'nothing highlighted')+' | '+location.search})()", function(result) {
+            web.runJavaScript("(function(){var r=document.querySelector('[data-pad-focus], .ring-4');return (window.__ariumPad?'':'NO HANDLER ')+(r?String(r.getAttribute('aria-label')||r.innerText||r.tagName).replace(/\\s+/g,' ').slice(0,50):'nothing highlighted')+' | '+location.pathname+location.search})()", function(result) {
                 arium.note("test press " + name + " -> " + result)
             })
         }
