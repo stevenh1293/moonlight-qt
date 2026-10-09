@@ -66,11 +66,14 @@ Item {
         color: "black"
     }
 
+    // Same size and place as the icon on the gaming PC's curtain (AriumPlay.cs), so the
+    // stream's first picture lands on top of this one
     Image {
-        anchors.centerIn: parent
+        width: Math.round(parent.height / 4)
+        height: width
+        x: Math.round((parent.width - width) / 2)
+        y: Math.round(parent.height / 2 - height)
         source: "qrc:/res/arium.png"
-        width: 192
-        height: 192
         smooth: true
     }
 
