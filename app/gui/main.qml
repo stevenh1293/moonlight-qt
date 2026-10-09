@@ -238,6 +238,8 @@ ApplicationWindow {
 
     header: ToolBar {
         id: toolBar
+        // PROTOTYPE (Arium): the page is the whole window
+        visible: !ariumMode
         height: 60
         anchors.topMargin: 5
         anchors.bottomMargin: 5
