@@ -71,7 +71,7 @@ Item {
     }
 
     Timer { id: executeTimer; interval: 50; onTriggered: begin() }
-    Timer { id: startTimer; interval: 0; onTriggered: { gc(); session.start() } }
+    Timer { id: startTimer; interval: 0; onTriggered: { gc(); arium.armTestLeave(); session.start() } }
     Timer { id: problemTimer; interval: 6000; onTriggered: finish() }
 
     Rectangle {

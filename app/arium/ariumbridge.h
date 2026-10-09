@@ -16,6 +16,7 @@
 #include "backend/computermanager.h"
 #include "backend/nvcomputer.h"
 #include "backend/nvhttp.h"
+#include "SDL_compat.h"
 #include "streaming/session.h"
 #include "settings/streamingpreferences.h"
 
@@ -99,6 +100,23 @@ public:
     }
 
     Q_INVOKABLE QString problem() const { return m_Problem; }
+
+    // For trying it with no controller to hand: leaves the stream as the middle button would,
+    // ARIUM_TEST_LEAVE_AFTER seconds from now. Called just before a stream starts.
+    Q_INVOKABLE void armTestLeave()
+    {
+        int seconds = qEnvironmentVariableIntValue("ARIUM_TEST_LEAVE_AFTER");
+        if (seconds <= 0) return;
+        SDL_InitSubSystem(SDL_INIT_TIMER);
+        SDL_AddTimer(seconds * 1000, [](Uint32, void*) -> Uint32 {
+            g_AriumLeftByMiddleButton = true;
+            SDL_Event quit;
+            quit.type = SDL_QUIT;
+            quit.quit.timestamp = SDL_GetTicks();
+            SDL_PushEvent(&quit);
+            return 0;
+        }, nullptr);
+    }
 
     // Whether the stream that has just ended was left with the middle button (asked once).
     Q_INVOKABLE bool takeLeftByMiddleButton()
