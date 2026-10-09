@@ -17,6 +17,7 @@ class AriumBridge : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(QString url READ url CONSTANT)
+    Q_PROPERTY(int testPlayAfter READ testPlayAfter CONSTANT)
 
 public:
     explicit AriumBridge(QObject *parent = nullptr) : QObject(parent) {}
@@ -25,6 +26,12 @@ public:
     QString url() const
     {
         return qEnvironmentVariable("ARIUM_URL", "https://arium.stevenhomeserver.com/games");
+    }
+
+    // For trying it with nobody at the keyboard: press Play this many seconds after the page loads
+    int testPlayAfter() const
+    {
+        return qEnvironmentVariableIntValue("ARIUM_TEST_PLAY_AFTER");
     }
 
     // A launcher is good for one stream only, so every Play gets a new one

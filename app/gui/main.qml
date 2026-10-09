@@ -158,6 +158,16 @@ ApplicationWindow {
         }
     }
 
+    // PROTOTYPE (Arium): the page sits beside the StackView, not in it. Qt leaves a web view
+    // that is created inside a StackView as a hidden window of its own (seen on Qt 6.12).
+    Loader {
+        id: ariumWeb
+        anchors.fill: parent
+        active: ariumMode
+        visible: stackView.depth === 1
+        source: "AriumWeb.qml"
+    }
+
     // This timer keeps us polling for 5 minutes of inactivity
     // to allow the user to work with Moonlight on a second display
     // while dealing with configuration issues. This will ensure
