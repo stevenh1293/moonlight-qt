@@ -18,8 +18,9 @@ Item {
         "if(window.navigation){navigation.addEventListener('navigate',function(e){" +
         "if(String(e.destination.url).indexOf('arium-play:')===0){if(e.cancelable)e.preventDefault();window.__ariumPlay++;}});}" +
         "window.addEventListener('keydown',function(e){if((e.ctrlKey&&(e.key==='q'||e.key==='Q'))||(e.altKey&&e.key==='F4'))window.__ariumExit=1;},true);" +
-        // A way out that is always on screen, on every page including sign-in
-        "var x=document.createElement('button');x.textContent='\u2715  Exit';x.title='Close Arium';" +
+        // A way out that is always on screen: this button, except where the page's own panel offers Exit
+        "var st=document.createElement('style');st.textContent='html[data-arium-panel] #arium-exit{display:none}';document.documentElement.appendChild(st);" +
+        "var x=document.createElement('button');x.id='arium-exit';x.textContent='\u2715  Exit';x.title='Close Arium';" +
         "x.style.cssText='position:fixed;top:10px;right:14px;z-index:2147483647;padding:9px 16px;border-radius:999px;border:1px solid rgba(255,255,255,.4);background:rgba(20,23,29,.9);color:#e9ebf0;font:600 15px system-ui,sans-serif;cursor:pointer';" +
         "x.onclick=function(){window.__ariumExit=1;};document.documentElement.appendChild(x);" +
         "if(fresh){location.reload();return 'marked, reloading';}" +
