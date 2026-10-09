@@ -4,6 +4,7 @@ import QtQuick.Controls 2.2
 import ComputerManager 1.0
 import Session 1.0
 import SystemProperties 1.0
+import SdlGamepadKeyNavigation 1.0
 
 // PROTOTYPE (Arium): black with the Arium icon from the press of Play until the stream's
 // own window is up, and again between the game ending and the page returning. Throwaway.
@@ -43,6 +44,8 @@ Item {
         })
         session.readyForDeletion.connect(function() { session = null; gc() })
 
+        // The stream reads the controller itself; the app's reading must be out of its way
+        SdlGamepadKeyNavigation.disable()
         SystemProperties.waitForAsyncLoad()
         if (!session.initialize(window)) {
             problem = problem || "The stream could not be set up"

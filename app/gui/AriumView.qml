@@ -9,8 +9,10 @@ Item {
     objectName: "Arium"
 
     StackView.onActivated: {
-        // The page reads the controller itself; Moonlight's own menu navigation would turn B into Escape
-        SdlGamepadKeyNavigation.disable()
+        // The app reads the controller and hands each press to the page (see AriumWeb.qml)
+        SdlGamepadKeyNavigation.setAriumMode(true)
+        SdlGamepadKeyNavigation.enable()
+        arium.note("controllers the app has open: " + SdlGamepadKeyNavigation.describeGamepads())
         arium.note("page shown")
     }
 

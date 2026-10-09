@@ -20,6 +20,7 @@ class AriumBridge : public QObject
     Q_OBJECT
     Q_PROPERTY(QString url READ url CONSTANT)
     Q_PROPERTY(int testPlayAfter READ testPlayAfter CONSTANT)
+    Q_PROPERTY(QString testPresses READ testPresses CONSTANT)
 
 public:
     explicit AriumBridge(QObject *parent = nullptr) : QObject(parent) {}
@@ -28,6 +29,12 @@ public:
     QString url() const
     {
         return qEnvironmentVariable("ARIUM_URL", "https://arium.stevenhomeserver.com/games");
+    }
+
+    // For trying it with no controller to hand: presses to hand the page, by name, comma-separated
+    QString testPresses() const
+    {
+        return qEnvironmentVariable("ARIUM_TEST_PRESSES");
     }
 
     // For trying it with nobody at the keyboard: press Play this many seconds after the page loads

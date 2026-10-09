@@ -2,6 +2,8 @@ import QtQuick 2.9
 import QtQuick.Controls 2.2
 import QtWebView
 
+import SdlGamepadKeyNavigation 1.0
+
 // PROTOTYPE (Arium): Arium's own web page as the library. Throwaway.
 Item {
     id: ariumWeb
@@ -42,6 +44,38 @@ Item {
 
         var component = Qt.createComponent("AriumStreamSegue.qml")
         stackView.push(component.createObject(stackView, {}), StackView.Immediate)
+    }
+
+    // Each press of the controller, read by the app, goes to the page by name. The page need not
+    // have keyboard focus for this, which a web view's own controller support would require.
+    property int pressesNoted: 0
+    Connections {
+        target: SdlGamepadKeyNavigation
+        function onAriumPress(name) {
+            if (pressesNoted < 40) {
+                pressesNoted++
+                arium.note("press: " + name + (name === "connected" ? " -> " + SdlGamepadKeyNavigation.describeGamepads() : ""))
+            }
+            if (stackView.depth === 1) {
+                web.runJavaScript("window.__ariumPad&&window.__ariumPad('" + name + "')")
+            }
+        }
+    }
+
+    // Pretend presses, one every 600 ms from 8 s after start, then what the page has highlighted
+    Timer {
+        property var left: arium.testPresses ? arium.testPresses.split(",") : []
+        interval: left.length === arium.testPresses.split(",").length ? 8000 : 600
+        running: arium.testPresses !== "" && left.length > 0
+        repeat: true
+        onTriggered: {
+            var name = left.shift()
+            leftChanged()
+            web.runJavaScript("window.__ariumPad&&window.__ariumPad('" + name + "')")
+            web.runJavaScript("(function(){var r=document.querySelector('.ring-4');return (window.__ariumPad?'':'NO HANDLER ')+(r?(r.innerText.split('\\n')[0]||r.querySelector('img')&&r.querySelector('img').src.split('/')[5]):'nothing highlighted')+' | '+location.search})()", function(result) {
+                arium.note("test press " + name + " -> " + result)
+            })
+        }
     }
 
     WebView {
