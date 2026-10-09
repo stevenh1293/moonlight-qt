@@ -1,4 +1,5 @@
 #include <QGuiApplication>
+#include <QtWebView>
 #include <QStyleHints>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -42,6 +43,7 @@
 #include "cli/listapps.h"
 #include "cli/quitstream.h"
 #include "cli/startstream.h"
+#include "arium/ariumbridge.h"
 #include "cli/pair.h"
 #include "cli/commandlineparser.h"
 #include "path.h"
@@ -753,6 +755,10 @@ int main(int argc, char *argv[])
         SDL_SetHint("SDL_VIDEO_WAYLAND_MODE_SCALING", "aspect");
     }
 
+    // PROTOTYPE (Arium): the library is Arium's own web page, drawn by Edge's engine
+    qputenv("QT_WEBVIEW_PLUGIN", "webview2");
+    QtWebView::initialize();
+
     QGuiApplication app(argc, argv);
 
 #ifdef Q_OS_DARWIN
@@ -989,7 +995,11 @@ int main(int argc, char *argv[])
 
     switch (commandLineParserResult) {
     case GlobalCommandLineParser::NormalStartRequested:
-        initialView = "qrc:/gui/PcView.qml";
+        // PROTOTYPE (Arium): open on Arium's page; "moonlight" as the only argument is not
+        // parsed as a normal start, so stock Moonlight's own screens stay reachable by building upstream.
+        initialView = "qrc:/gui/AriumView.qml";
+        // Borderless full screen, for this run only (not saved)
+        StreamingPreferences::get()->windowMode = StreamingPreferences::WM_FULLSCREEN_DESKTOP;
         break;
     case GlobalCommandLineParser::StreamRequested:
         {
@@ -1034,6 +1044,8 @@ int main(int argc, char *argv[])
 
     if (hasGUI) {
         engine.rootContext()->setContextProperty("initialView", initialView);
+        engine.rootContext()->setContextProperty("ariumMode", commandLineParserResult == GlobalCommandLineParser::NormalStartRequested);
+        engine.rootContext()->setContextProperty("arium", new AriumBridge(&app));
         engine.rootContext()->setContextProperty("runConfigChecks", commandLineParserResult == GlobalCommandLineParser::NormalStartRequested);
 
         // Load the main.qml file

@@ -36,7 +36,10 @@ ApplicationWindow {
 
     Component.onCompleted: {
         // Show the window according to the user's preferences
-        if (SystemProperties.hasDesktopEnvironment) {
+        if (ariumMode) {
+            window.showFullScreen()
+        }
+        else if (SystemProperties.hasDesktopEnvironment) {
             if (StreamingPreferences.uiDisplayMode == StreamingPreferences.UI_MAXIMIZED) {
                 window.showMaximized()
             }

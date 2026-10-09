@@ -1816,6 +1816,12 @@ void Session::exec()
     // We always want a resizable window with High DPI enabled
     Uint32 defaultWindowFlags = SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_RESIZABLE;
 
+    // PROTOTYPE (Arium): create the window already full screen, so it is never seen
+    // as a small framed window on a black screen before SDL_SetWindowFullscreen() below.
+    if (m_IsFullScreen && m_FullScreenFlag == SDL_WINDOW_FULLSCREEN_DESKTOP) {
+        defaultWindowFlags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
+    }
+
     // If we're starting in windowed mode and the Moonlight GUI is maximized or
     // minimized, match that with the streaming window.
     if (!m_IsFullScreen && m_QtWindow != nullptr) {
