@@ -10,7 +10,6 @@ import SystemProperties 1.0
 Item {
     id: segue
 
-    property var launcher
     property Session session
     property string problem: ""
 
@@ -19,9 +18,15 @@ Item {
         stackView.pop(StackView.Immediate)
     }
 
-    function onSessionCreated(appName, newSession) {
-        arium.note("session created for " + appName)
-        session = newSession
+    function begin() {
+        session = arium.newSession(ComputerManager)
+        if (!session) {
+            problem = arium.problem()
+            arium.note("no session: " + problem)
+            problemTimer.start()
+            return
+        }
+        arium.note("session created")
         session.stageFailed.connect(function(stage, errorCode, failingPorts) {
             problem = "Starting " + stage + " failed: error " + errorCode
         })
@@ -48,23 +53,11 @@ Item {
     }
 
     StackView.onActivated: {
-        launcher = arium.newLauncher()
-        launcher.sessionCreated.connect(onSessionCreated)
-        launcher.failed.connect(function(message) {
-            problem = message
-            arium.note("launch failed: " + message)
-            problemTimer.start()
-        })
-        launcher.appQuitRequired.connect(function(appName) {
-            problem = appName + " is already running on the gaming PC"
-            arium.note(problem)
-            problemTimer.start()
-        })
         // One frame of black first, so the page is never the last thing seen
         executeTimer.start()
     }
 
-    Timer { id: executeTimer; interval: 50; onTriggered: launcher.execute(ComputerManager) }
+    Timer { id: executeTimer; interval: 50; onTriggered: begin() }
     Timer { id: startTimer; interval: 0; onTriggered: { gc(); session.start() } }
     Timer { id: problemTimer; interval: 6000; onTriggered: finish() }
 

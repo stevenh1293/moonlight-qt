@@ -10,7 +10,9 @@
 #include <QStandardPaths>
 #include <QDir>
 
-#include "cli/startstream.h"
+#include "backend/computermanager.h"
+#include "backend/nvcomputer.h"
+#include "streaming/session.h"
 #include "settings/streamingpreferences.h"
 
 class AriumBridge : public QObject
@@ -34,13 +36,52 @@ public:
         return qEnvironmentVariableIntValue("ARIUM_TEST_PLAY_AFTER");
     }
 
-    // A launcher is good for one stream only, so every Play gets a new one
-    Q_INVOKABLE QObject* newLauncher()
+    // A stream of the gaming PC's Arium entry, from what this app already knows about the PC.
+    // (Moonlight's command-line launcher waits for the next change in the PC's state, which
+    // inside an app that is already running took 28 seconds.) Null, with problem() set, if it cannot.
+    Q_INVOKABLE Session* newSession(ComputerManager* manager)
     {
-        return new CliStartStream::Launcher(qEnvironmentVariable("ARIUM_HOST", "GamingVM"),
-                                            qEnvironmentVariable("ARIUM_ENTRY", "Arium"),
-                                            StreamingPreferences::get(), this);
+        const QString host = qEnvironmentVariable("ARIUM_HOST", "GamingVM");
+        const QString entry = qEnvironmentVariable("ARIUM_ENTRY", "Arium");
+        m_Problem.clear();
+
+        for (NvComputer* computer : manager->getComputers()) {
+            QReadLocker lock(&computer->lock);
+            if (computer->name.compare(host, Qt::CaseInsensitive) != 0 &&
+                    computer->activeAddress.address() != host &&
+                    computer->localAddress.address() != host &&
+                    computer->manualAddress.address() != host) {
+                continue;
+            }
+            if (computer->state != NvComputer::CS_ONLINE) {
+                m_Problem = "The gaming PC is not answering";
+                return nullptr;
+            }
+            if (computer->pairState != NvComputer::PS_PAIRED) {
+                m_Problem = "This PC has not been paired with the gaming PC";
+                return nullptr;
+            }
+            for (const NvApp& app : std::as_const(computer->appList)) {
+                if (app.name.compare(entry, Qt::CaseInsensitive) != 0) {
+                    continue;
+                }
+                if (computer->currentGameId != 0 && computer->currentGameId != app.id) {
+                    m_Problem = "Something else is already running on the gaming PC";
+                    return nullptr;
+                }
+                NvApp chosen = app;
+                lock.unlock();
+                return new Session(computer, chosen, StreamingPreferences::get());
+            }
+            m_Problem = "The gaming PC has no entry called " + entry;
+            return nullptr;
+        }
+
+        m_Problem = "The gaming PC (" + host + ") has not been found yet";
+        return nullptr;
     }
+
+    Q_INVOKABLE QString problem() const { return m_Problem; }
 
     // One line per event, so a run can be read afterwards without a debugger
     Q_INVOKABLE void note(const QString& text)
@@ -51,4 +92,7 @@ public:
             QTextStream(&f) << QDateTime::currentDateTime().toString("HH:mm:ss.zzz") << "  " << text << "\n";
         }
     }
+
+private:
+    QString m_Problem;
 };
