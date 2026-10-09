@@ -72,7 +72,7 @@ Item {
     Timer {
         property var left: arium.testPresses ? arium.testPresses.split(",") : []
         interval: left.length === arium.testPresses.split(",").length ? 8000 : 600
-        running: arium.testPresses !== "" && left.length > 0
+        running: arium.testPresses !== "" && left.length > 0 && stackView.depth === 1
         repeat: true
         onTriggered: {
             var name = left.shift()
