@@ -15,8 +15,12 @@
 
 #include "backend/computermanager.h"
 #include "backend/nvcomputer.h"
+#include "backend/nvhttp.h"
 #include "streaming/session.h"
 #include "settings/streamingpreferences.h"
+
+// Set by the stream's controller handling when the middle button was what ended it (gamepad.cpp)
+extern bool g_AriumLeftByMiddleButton;
 
 class AriumBridge : public QObject
 {
@@ -56,6 +60,9 @@ public:
         m_Problem.clear();
 
         for (NvComputer* computer : manager->getComputers()) {
+            // Asked afresh: whether a game is already up decides between starting and rejoining,
+            // and what the app last heard may be minutes old (it stops asking while idle).
+            refresh(computer);
             QReadLocker lock(&computer->lock);
             if (computer->name.compare(host, Qt::CaseInsensitive) != 0 &&
                     computer->activeAddress.address() != host &&
@@ -93,6 +100,14 @@ public:
 
     Q_INVOKABLE QString problem() const { return m_Problem; }
 
+    // Whether the stream that has just ended was left with the middle button (asked once).
+    Q_INVOKABLE bool takeLeftByMiddleButton()
+    {
+        bool was = g_AriumLeftByMiddleButton;
+        g_AriumLeftByMiddleButton = false;
+        return was;
+    }
+
     // Puts the mouse pointer in the bottom right corner of the screen it is on, where it cannot
     // be seen or rest on anything, when a controller is picked up. Moving the mouse brings it back.
     Q_INVOKABLE void parkPointer()
@@ -114,5 +129,28 @@ public:
     }
 
 private:
+    static void refresh(NvComputer* computer)
+    {
+        NvAddress address;
+        QSslCertificate cert;
+        bool notNvidia;
+        QString uuid;
+        {
+            QReadLocker lock(&computer->lock);
+            address = computer->activeAddress;
+            cert = computer->serverCert;
+            notNvidia = !computer->isNvidiaServerSoftware;
+            uuid = computer->uuid;
+        }
+        if (address.isNull()) return;
+        try {
+            NvHTTP http(address, 0, cert, notNvidia);
+            NvComputer now(http, http.getServerInfo(NvHTTP::NvLogLevel::NVLL_NONE, true));
+            if (now.uuid == uuid) computer->update(now);
+        } catch (...) {
+            // Out of reach just now: what was last heard stands, and starting the stream will say so
+        }
+    }
+
     QString m_Problem;
 };

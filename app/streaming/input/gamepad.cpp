@@ -7,6 +7,9 @@
 
 #include <QtMath>
 
+// PROTOTYPE (Arium): told to the app's own screens when the stream ends (arium/ariumbridge.h)
+bool g_AriumLeftByMiddleButton = false;
+
 // How long the Start button must be pressed to toggle mouse emulation
 #define MOUSE_EMULATION_LONG_PRESS_TIME 750
 
@@ -293,6 +296,7 @@ void SdlInputHandler::handleControllerButtonEvent(SDL_ControllerButtonEvent* eve
     if (event->button == SDL_CONTROLLER_BUTTON_GUIDE && qgetenv("ARIUM_GUIDE_TO_GAME") != "1") {
         if (event->state == SDL_PRESSED) {
             SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Middle button: leaving the game");
+            g_AriumLeftByMiddleButton = true;
 
             SDL_Event quit;
             quit.type = SDL_QUIT;

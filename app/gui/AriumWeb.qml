@@ -31,6 +31,11 @@ Item {
     // What the page itself does when Play is pressed (apps/web/src/lib/moonlight.ts)
     readonly property string pressPlay: "(function(){var a=document.createElement('a');a.href='arium-play://go';a.click();return 'pressed';})()"
 
+    // Sends the page to one of its own addresses without loading it afresh
+    function go(path) {
+        web.runJavaScript("window.__ariumGo?window.__ariumGo('" + path + "'):location.assign('" + path + "')")
+    }
+
     function playAsked(how) {
         var now = Date.now()
         if (now - lastPlayAt < 3000 || stackView.depth !== 1) {

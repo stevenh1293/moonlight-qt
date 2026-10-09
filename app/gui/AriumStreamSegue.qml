@@ -15,9 +15,19 @@ Item {
     property string problem: ""
 
     function finish() {
+        // Left with the middle button: the page goes to its screen for the game still running,
+        // and is given a moment to get there behind this black screen before it shows.
+        if (arium.takeLeftByMiddleButton() && !problem) {
+            arium.note("left with the middle button; the page is sent to the running game's screen")
+            ariumWeb.item.go("/playing")
+            leaveTimer.start()
+            return
+        }
         arium.note("back to the page" + (problem ? " after: " + problem : ""))
         stackView.pop(StackView.Immediate)
     }
+
+    Timer { id: leaveTimer; interval: 350; onTriggered: stackView.pop(StackView.Immediate) }
 
     function begin() {
         session = arium.newSession(ComputerManager)
