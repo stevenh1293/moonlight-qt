@@ -77,6 +77,14 @@ Item {
         onTriggered: {
             var name = left.shift()
             leftChanged()
+            if (name.indexOf("click=") === 0) {
+                // "click=Play_Star_Fox": presses the first button or link whose name or words start so
+                var wanted = name.substring(6).replace(/_/g, " ")
+                web.runJavaScript("(function(){var w=" + JSON.stringify(wanted) + ";var all=[].slice.call(document.querySelectorAll('button,a'));var e=all.filter(function(x){return x.offsetParent!==null&&((x.getAttribute('aria-label')||'').indexOf(w)===0||(x.innerText||'').trim().indexOf(w)===0)})[0];if(e){e.click();return 'clicked '+w+' | '+location.pathname}return 'NOT FOUND '+w+' | '+location.pathname})()", function(result) {
+                    arium.note("test " + result)
+                })
+                return
+            }
             web.runJavaScript("window.__ariumPad&&window.__ariumPad('" + name + "')")
             web.runJavaScript("(function(){var r=document.querySelector('[data-pad-focus], .ring-4');return (window.__ariumPad?'':'NO HANDLER ')+(r?String(r.getAttribute('aria-label')||r.innerText||r.tagName).replace(/\\s+/g,' ').slice(0,50):'nothing highlighted')+' | '+location.pathname+location.search})()", function(result) {
                 arium.note("test press " + name + " -> " + result)
