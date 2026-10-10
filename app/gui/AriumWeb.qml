@@ -57,12 +57,13 @@ Item {
     Connections {
         target: SdlGamepadKeyNavigation
         function onAriumPress(name) {
-            if (name !== "disconnected") arium.parkPointer()
-            if ((pressesNoted < 40 || name === "connected" || name === "disconnected") && name.indexOf("scroll:") !== 0) {
+            var coming = name === "connected" || name === "disconnected" || name.indexOf("released") === 0
+            if (name !== "disconnected" && name.indexOf("released") !== 0) arium.parkPointer()
+            if ((pressesNoted < 40 || coming) && name.indexOf("scroll:") !== 0) {
                 pressesNoted++
-                arium.note("press: " + name + (name === "connected" || name === "disconnected" ? " -> " + SdlGamepadKeyNavigation.describeGamepads() : ""))
+                arium.note("press: " + name + (coming ? " -> " + SdlGamepadKeyNavigation.describeGamepads() : ""))
             }
-            if (stackView.depth === 1 && name !== "disconnected") {
+            if (stackView.depth === 1 && name !== "disconnected" && name.indexOf("released") !== 0) {
                 web.runJavaScript("window.__ariumPad&&window.__ariumPad('" + name + "')")
             }
         }
@@ -122,16 +123,17 @@ Item {
         }
     }
 
-    // What the page can see of the controllers, noted now and then for the log
+    // The page's focus and sound, noted now and then for the log. The page is never asked about
+    // controllers here: asking makes the web view take hold of them as well.
     Timer {
         id: padReport
         interval: 5000
         repeat: true
         property string last: ""
-        onTriggered: web.runJavaScript("(function(){try{var p=[].slice.call(navigator.getGamepads()).filter(Boolean);return p.length+' pad(s): '+p.map(function(g){return g.id+' mapping='+g.mapping+' buttons='+g.buttons.length+' pressed='+g.buttons.map(function(b,i){return b.pressed?i:''}).filter(String).join('+')}).join(' ; ')+' | focus: '+document.hasFocus()+' | sound: '+(window.__ariumSound||'not used yet')}catch(e){return 'error: '+e}})()", function(result) {
+        onTriggered: web.runJavaScript("(function(){return 'focus: '+document.hasFocus()+' | sound: '+(window.__ariumSound||'not used yet')})()", function(result) {
             if (result !== last) {
                 last = result
-                arium.note("controllers: " + result)
+                arium.note("page: " + result)
             }
         })
     }

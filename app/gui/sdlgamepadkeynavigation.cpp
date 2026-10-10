@@ -139,6 +139,7 @@ void SdlGamepadKeyNavigation::pollForArium()
     inFront = pid == GetCurrentProcessId();
 #endif
 
+    bool gone = false;
     while (SDL_PeepEvents(&event, 1, SDL_GETEVENT, SDL_FIRSTEVENT, SDL_LASTEVENT) == 1) {
         switch (event.type) {
         case SDL_QUIT:
@@ -187,6 +188,7 @@ void SdlGamepadKeyNavigation::pollForArium()
             if (gc != nullptr) {
                 m_Gamepads.removeAll(gc);
                 SDL_GameControllerClose(gc);
+                gone = true;
                 emit ariumPress("disconnected");
             }
             break;
@@ -199,8 +201,20 @@ void SdlGamepadKeyNavigation::pollForArium()
         if (!SDL_GameControllerGetAttached(m_Gamepads[i])) {
             SDL_GameControllerClose(m_Gamepads[i]);
             m_Gamepads.removeAt(i);
+            gone = true;
             emit ariumPress("disconnected");
         }
+    }
+
+    // With the last one gone, controller support is shut down whole and started again, so this
+    // program is left holding nothing of the old controller. Seen on a controller that comes
+    // through the Xbox Wireless Adapter: it connected again only to a program started afresh.
+    if (gone && m_Gamepads.isEmpty()) {
+        disable();
+        bool stillUp = SDL_WasInit(SDL_INIT_JOYSTICK) != 0;
+        enable();
+        emit ariumPress(stillUp ? "released (controller support was still in use elsewhere)" : "released");
+        return;
     }
 
     // The D-pad and the left stick as one direction, repeating while held
