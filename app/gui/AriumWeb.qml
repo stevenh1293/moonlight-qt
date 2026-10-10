@@ -128,7 +128,7 @@ Item {
         interval: 5000
         repeat: true
         property string last: ""
-        onTriggered: web.runJavaScript("(function(){try{var p=[].slice.call(navigator.getGamepads()).filter(Boolean);return p.length+' pad(s): '+p.map(function(g){return g.id+' mapping='+g.mapping+' buttons='+g.buttons.length+' pressed='+g.buttons.map(function(b,i){return b.pressed?i:''}).filter(String).join('+')}).join(' ; ')+' | focus: '+document.hasFocus()}catch(e){return 'error: '+e}})()", function(result) {
+        onTriggered: web.runJavaScript("(function(){try{var p=[].slice.call(navigator.getGamepads()).filter(Boolean);return p.length+' pad(s): '+p.map(function(g){return g.id+' mapping='+g.mapping+' buttons='+g.buttons.length+' pressed='+g.buttons.map(function(b,i){return b.pressed?i:''}).filter(String).join('+')}).join(' ; ')+' | focus: '+document.hasFocus()+' | sound: '+(window.__ariumSound||'not used yet')}catch(e){return 'error: '+e}})()", function(result) {
             if (result !== last) {
                 last = result
                 arium.note("controllers: " + result)

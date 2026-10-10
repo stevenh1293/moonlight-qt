@@ -757,6 +757,11 @@ int main(int argc, char *argv[])
 
     // PROTOTYPE (Arium): the library is Arium's own web page, drawn by Edge's engine
     qputenv("QT_WEBVIEW_PLUGIN", "webview2");
+    // The page may make sound without waiting for a click: its controller sounds, and music or a
+    // film started with the controller, would otherwise be silent until the mouse was used once.
+    if (!qEnvironmentVariableIsSet("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS")) {
+        qputenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--autoplay-policy=no-user-gesture-required");
+    }
     QtWebView::initialize();
 
     QGuiApplication app(argc, argv);
