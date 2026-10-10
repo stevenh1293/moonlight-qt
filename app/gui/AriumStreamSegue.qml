@@ -6,7 +6,7 @@ import Session 1.0
 import SystemProperties 1.0
 import SdlGamepadKeyNavigation 1.0
 
-// PROTOTYPE (Arium): black with the Arium icon from the press of Play until the stream's
+// PROTOTYPE (Arium): Arium's picture on black from the press of Play until the stream's
 // own window is up, and again between the game ending and the page returning. Throwaway.
 Item {
     id: segue
@@ -82,15 +82,14 @@ Item {
         color: "black"
     }
 
-    // Same size and place as the icon on the gaming PC's curtain (AriumPlay.cs), so the
-    // stream's first picture lands on top of this one
+    // Arium's picture over the whole screen, fitted the same way as on the gaming PC's curtain
+    // (AriumPlay.cs), so the stream's first picture lands on top of this one
     Image {
-        width: Math.round(parent.height / 4)
-        height: width
-        x: Math.round((parent.width - width) / 2)
-        y: Math.round(parent.height / 2 - height)
-        source: "qrc:/res/arium.png"
+        anchors.fill: parent
+        fillMode: Image.PreserveAspectFit
+        source: "qrc:/res/arium_background.png"
         smooth: true
+        mipmap: true
     }
 
     Label {
