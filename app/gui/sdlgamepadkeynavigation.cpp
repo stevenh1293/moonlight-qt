@@ -178,6 +178,28 @@ void SdlGamepadKeyNavigation::pollForArium()
             }
             break;
         }
+        case SDL_CONTROLLERDEVICEREMOVED:
+        {
+            // A controller that has gone (switched off, or asleep after a while unused) is let
+            // go of at once. Kept open, this program's hold on it stops Windows clearing it
+            // away, and the same controller then cannot connect again: it blinks and gives up.
+            SDL_GameController* gc = SDL_GameControllerFromInstanceID(event.cdevice.which);
+            if (gc != nullptr) {
+                m_Gamepads.removeAll(gc);
+                SDL_GameControllerClose(gc);
+                emit ariumPress("disconnected");
+            }
+            break;
+        }
+        }
+    }
+
+    // And any that has gone without a word (the event can be missed while a stream has the controllers)
+    for (int i = m_Gamepads.size() - 1; i >= 0; i--) {
+        if (!SDL_GameControllerGetAttached(m_Gamepads[i])) {
+            SDL_GameControllerClose(m_Gamepads[i]);
+            m_Gamepads.removeAt(i);
+            emit ariumPress("disconnected");
         }
     }
 

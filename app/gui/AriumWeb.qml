@@ -57,10 +57,11 @@ Item {
     Connections {
         target: SdlGamepadKeyNavigation
         function onAriumPress(name) {
+            if (name === "disconnected") return
             arium.parkPointer()
-            if (pressesNoted < 40 && name.indexOf("scroll:") !== 0) {
+            if ((pressesNoted < 40 || name === "connected" || name === "disconnected") && name.indexOf("scroll:") !== 0) {
                 pressesNoted++
-                arium.note("press: " + name + (name === "connected" ? " -> " + SdlGamepadKeyNavigation.describeGamepads() : ""))
+                arium.note("press: " + name + (name === "connected" || name === "disconnected" ? " -> " + SdlGamepadKeyNavigation.describeGamepads() : ""))
             }
             if (stackView.depth === 1) {
                 web.runJavaScript("window.__ariumPad&&window.__ariumPad('" + name + "')")
