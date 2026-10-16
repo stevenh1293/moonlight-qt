@@ -1,4 +1,4 @@
-QT += core quick network quickcontrols2 svg
+QT += core quick network quickcontrols2 svg webview
 CONFIG += c++17
 
 unix:!macx {
@@ -226,6 +226,7 @@ HEADERS += \
     cli/listapps.h \
     cli/quitstream.h \
     cli/startstream.h \
+    arium/ariumbridge.h \
     settings/streamingpreferences.h \
     streaming/input/input.h \
     streaming/session.h \

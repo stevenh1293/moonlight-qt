@@ -36,7 +36,12 @@ ApplicationWindow {
 
     Component.onCompleted: {
         // Show the window according to the user's preferences
-        if (SystemProperties.hasDesktopEnvironment) {
+        if (ariumMode) {
+            // Full screen or a window, as last chosen with F11
+            if (arium.fullScreen) window.showFullScreen()
+            else window.showMaximized()
+        }
+        else if (SystemProperties.hasDesktopEnvironment) {
             if (StreamingPreferences.uiDisplayMode == StreamingPreferences.UI_MAXIMIZED) {
                 window.showMaximized()
             }
@@ -155,6 +160,24 @@ ApplicationWindow {
         }
     }
 
+    // Arium: the page sits beside the StackView, not in it. Qt leaves a web view that is created
+    // inside a StackView as a hidden window of its own (seen on Qt 6.12).
+    Connections {
+        target: ariumMode ? arium : null
+        function onFullScreenChanged() {
+            if (arium.fullScreen) window.showFullScreen()
+            else window.showMaximized()
+        }
+    }
+
+    Loader {
+        id: ariumWeb
+        anchors.fill: parent
+        active: ariumMode
+        visible: stackView.depth === 1
+        source: "AriumWeb.qml"
+    }
+
     // This timer keeps us polling for 5 minutes of inactivity
     // to allow the user to work with Moonlight on a second display
     // while dealing with configuration issues. This will ensure
@@ -235,6 +258,8 @@ ApplicationWindow {
 
     header: ToolBar {
         id: toolBar
+        // Arium: the page is the whole window
+        visible: !ariumMode
         height: 60
         anchors.topMargin: 5
         anchors.bottomMargin: 5

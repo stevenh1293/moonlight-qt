@@ -4,6 +4,11 @@
 #include <QGuiApplication>
 #include <QWindow>
 
+#ifdef Q_OS_WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+#endif
+
 #include "settings/mappingmanager.h"
 
 #define AXIS_NAVIGATION_REPEAT_DELAY 150
@@ -99,8 +104,160 @@ void SdlGamepadKeyNavigation::notifyWindowFocus(bool hasFocus)
     updateTimerState();
 }
 
+void SdlGamepadKeyNavigation::setAriumMode(bool on)
+{
+    m_AriumMode = on;
+    updateTimerState();
+}
+
+QString SdlGamepadKeyNavigation::describeGamepads()
+{
+    QStringList names;
+    for (auto gc : std::as_const(m_Gamepads)) {
+        names.append(QString::fromUtf8(SDL_GameControllerName(gc)));
+    }
+    return QString("%1 opened: %2").arg(names.size()).arg(names.join(" ; "));
+}
+
+// Arium: every press as a name for the page; a held direction repeats.
+void SdlGamepadKeyNavigation::pollForArium()
+{
+    SDL_Event event;
+    SDL_JoystickUpdate();
+
+    if (m_FirstPoll) {
+        SDL_FlushEvent(SDL_CONTROLLERBUTTONDOWN);
+        SDL_FlushEvent(SDL_CONTROLLERBUTTONUP);
+        m_FirstPoll = false;
+    }
+
+    // Only while this app is the one in front: presses meant for something else are not ours
+    bool inFront = true;
+#ifdef Q_OS_WIN32
+    DWORD pid = 0;
+    GetWindowThreadProcessId(GetForegroundWindow(), &pid);
+    inFront = pid == GetCurrentProcessId();
+#endif
+
+    bool gone = false;
+    while (SDL_PeepEvents(&event, 1, SDL_GETEVENT, SDL_FIRSTEVENT, SDL_LASTEVENT) == 1) {
+        switch (event.type) {
+        case SDL_QUIT:
+            // Left over from a stream (how it was left), never a request to close the app:
+            // the app is closed by its own Exit.
+            break;
+        case SDL_CONTROLLERBUTTONDOWN:
+        {
+            const char* name = nullptr;
+            switch (event.cbutton.button) {
+            case SDL_CONTROLLER_BUTTON_A: name = "a"; break;
+            case SDL_CONTROLLER_BUTTON_B: name = "b"; break;
+            case SDL_CONTROLLER_BUTTON_X: name = "x"; break;
+            case SDL_CONTROLLER_BUTTON_Y: name = "y"; break;
+            case SDL_CONTROLLER_BUTTON_LEFTSHOULDER: name = "lb"; break;
+            case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: name = "rb"; break;
+            case SDL_CONTROLLER_BUTTON_BACK: name = "view"; break;
+            case SDL_CONTROLLER_BUTTON_START: name = "menu"; break;
+            case SDL_CONTROLLER_BUTTON_GUIDE: name = "guide"; break;
+            default: break;
+            }
+            if (name != nullptr && inFront) {
+                emit ariumPress(name);
+            }
+            break;
+        }
+        case SDL_CONTROLLERDEVICEADDED:
+        {
+            SDL_GameController* gc = SDL_GameControllerOpen(event.cdevice.which);
+            if (gc != nullptr) {
+                if (!m_Gamepads.contains(gc)) {
+                    m_Gamepads.append(gc);
+                    emit ariumPress("connected");
+                }
+                else {
+                    SDL_GameControllerClose(gc);
+                }
+            }
+            break;
+        }
+        case SDL_CONTROLLERDEVICEREMOVED:
+        {
+            // A controller that has gone (switched off, or asleep after a while unused) is let
+            // go of at once. Kept open, this program's hold on it stops Windows clearing it
+            // away, and the same controller then cannot connect again: it blinks and gives up.
+            SDL_GameController* gc = SDL_GameControllerFromInstanceID(event.cdevice.which);
+            if (gc != nullptr) {
+                m_Gamepads.removeAll(gc);
+                SDL_GameControllerClose(gc);
+                gone = true;
+                emit ariumPress("disconnected");
+            }
+            break;
+        }
+        }
+    }
+
+    // And any that has gone without a word (the event can be missed while a stream has the controllers)
+    for (int i = m_Gamepads.size() - 1; i >= 0; i--) {
+        if (!SDL_GameControllerGetAttached(m_Gamepads[i])) {
+            SDL_GameControllerClose(m_Gamepads[i]);
+            m_Gamepads.removeAt(i);
+            gone = true;
+            emit ariumPress("disconnected");
+        }
+    }
+
+    // With the last one gone, controller support is shut down whole and started again, so this
+    // program is left holding nothing of the old controller. Seen on a controller that comes
+    // through the Xbox Wireless Adapter: it connected again only to a program started afresh.
+    if (gone && m_Gamepads.isEmpty()) {
+        disable();
+        bool stillUp = SDL_WasInit(SDL_INIT_JOYSTICK) != 0;
+        enable();
+        emit ariumPress(stillUp ? "released (controller support was still in use elsewhere)" : "released");
+        return;
+    }
+
+    // The D-pad and the left stick as one direction, repeating while held
+    static const char* names[] = { "up", "down", "left", "right" };
+    int direction = -1;
+    for (auto gc : std::as_const(m_Gamepads)) {
+        short x = SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_LEFTX);
+        short y = SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_LEFTY);
+        if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_DPAD_UP) || y < -20000) direction = 0;
+        else if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_DPAD_DOWN) || y > 20000) direction = 1;
+        else if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_DPAD_LEFT) || x < -20000) direction = 2;
+        else if (SDL_GameControllerGetButton(gc, SDL_CONTROLLER_BUTTON_DPAD_RIGHT) || x > 20000) direction = 3;
+        if (direction != -1) break;
+    }
+    // The right stick scrolls the page: how far it leans, every poll while it is held
+    for (auto gc : std::as_const(m_Gamepads)) {
+        short lean = SDL_GameControllerGetAxis(gc, SDL_CONTROLLER_AXIS_RIGHTY);
+        if (inFront && (lean > 6500 || lean < -6500)) {
+            emit ariumPress(QString("scroll:%1").arg(lean / 32767.0, 0, 'f', 2));
+            break;
+        }
+    }
+
+    Uint32 now = SDL_GetTicks();
+    if (direction != m_AriumDirection) {
+        m_AriumDirection = direction;
+        m_AriumNextRepeat = now + 380;
+        if (direction != -1 && inFront) emit ariumPress(names[direction]);
+    }
+    else if (direction != -1 && SDL_TICKS_PASSED(now, m_AriumNextRepeat)) {
+        m_AriumNextRepeat = now + 120;
+        if (inFront) emit ariumPress(names[direction]);
+    }
+}
+
 void SdlGamepadKeyNavigation::onPollingTimerFired()
 {
+    if (m_AriumMode) {
+        pollForArium();
+        return;
+    }
+
     SDL_Event event;
 
     // Update joystick state without pumping other events (see enable() comment)
@@ -274,15 +431,17 @@ void SdlGamepadKeyNavigation::sendKey(QEvent::Type type, Qt::Key key, Qt::Keyboa
 
 void SdlGamepadKeyNavigation::updateTimerState()
 {
-    if (m_PollingTimer->isActive() && (!m_HasFocus || !m_Enabled)) {
+    // Arium: Qt's own focus says nothing while the web view holds the keyboard
+    bool wanted = m_Enabled && (m_HasFocus || m_AriumMode);
+    if (m_PollingTimer->isActive() && !wanted) {
         m_PollingTimer->stop();
     }
-    else if (!m_PollingTimer->isActive() && m_HasFocus && m_Enabled) {
+    else if (!m_PollingTimer->isActive() && wanted) {
         // Flush events on the first poll
         m_FirstPoll = true;
 
-        // Poll every 50 ms for a new joystick event
-        m_PollingTimer->start(50);
+        // Poll every 50 ms for a new joystick event (Arium: every 16, for a held direction)
+        m_PollingTimer->start(m_AriumMode ? 16 : 50);
     }
 }
 

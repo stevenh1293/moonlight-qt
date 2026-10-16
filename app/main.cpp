@@ -1,4 +1,5 @@
 #include <QGuiApplication>
+#include <QtWebView>
 #include <QStyleHints>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -42,6 +43,7 @@
 #include "cli/listapps.h"
 #include "cli/quitstream.h"
 #include "cli/startstream.h"
+#include "arium/ariumbridge.h"
 #include "cli/pair.h"
 #include "cli/commandlineparser.h"
 #include "path.h"
@@ -428,9 +430,11 @@ int main(int argc, char *argv[])
     // Set these here to allow us to use the default QSettings constructor.
     // These also ensure that our cache directory is named correctly. As such,
     // it is critical that these be called before Path::initialize().
-    QCoreApplication::setOrganizationName("Moonlight Game Streaming Project");
-    QCoreApplication::setOrganizationDomain("moonlight-stream.com");
-    QCoreApplication::setApplicationName("Moonlight");
+    // Arium: its own name, so its settings, pairing and log are kept apart from any stock
+    // Moonlight on the same PC.
+    QCoreApplication::setOrganizationName("Arium");
+    QCoreApplication::setOrganizationDomain("arium.stevenhomeserver.com");
+    QCoreApplication::setApplicationName("Arium");
 
     if (QFile(QDir::currentPath() + "/portable.dat").exists()) {
         QSettings::setDefaultFormat(QSettings::IniFormat);
@@ -753,6 +757,15 @@ int main(int argc, char *argv[])
         SDL_SetHint("SDL_VIDEO_WAYLAND_MODE_SCALING", "aspect");
     }
 
+    // Arium: the library is Arium's own web page, drawn by Edge's engine
+    qputenv("QT_WEBVIEW_PLUGIN", "webview2");
+    // The page may make sound without waiting for a click: its controller sounds, and music or a
+    // film started with the controller, would otherwise be silent until the mouse was used once.
+    if (!qEnvironmentVariableIsSet("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS")) {
+        qputenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--autoplay-policy=no-user-gesture-required");
+    }
+    QtWebView::initialize();
+
     QGuiApplication app(argc, argv);
 
 #ifdef Q_OS_DARWIN
@@ -989,7 +1002,10 @@ int main(int argc, char *argv[])
 
     switch (commandLineParserResult) {
     case GlobalCommandLineParser::NormalStartRequested:
-        initialView = "qrc:/gui/PcView.qml";
+        // Arium: open on Arium's page. (Moonlight's own screens are still reached through the
+        // command line's other modes.) Streams are borderless full screen, for this run only.
+        initialView = "qrc:/gui/AriumView.qml";
+        StreamingPreferences::get()->windowMode = StreamingPreferences::WM_FULLSCREEN_DESKTOP;
         break;
     case GlobalCommandLineParser::StreamRequested:
         {
@@ -1034,6 +1050,8 @@ int main(int argc, char *argv[])
 
     if (hasGUI) {
         engine.rootContext()->setContextProperty("initialView", initialView);
+        engine.rootContext()->setContextProperty("ariumMode", commandLineParserResult == GlobalCommandLineParser::NormalStartRequested);
+        engine.rootContext()->setContextProperty("arium", new AriumBridge(&app));
         engine.rootContext()->setContextProperty("runConfigChecks", commandLineParserResult == GlobalCommandLineParser::NormalStartRequested);
 
         // Load the main.qml file
