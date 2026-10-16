@@ -18,6 +18,8 @@ Item {
     // keys (Ctrl+Q and Alt+F4 close the app, F11 switches between full screen and a window) and a
     // way out that is always on screen.
     readonly property string hook: "(function(){" +
+        // Not Arium's page (an error page from the web server in front of it, say): nothing is added
+        "if(!document.getElementById('root'))return 'not arium';" +
         "if(window.__ariumApp)return 'already';window.__ariumApp=true;window.__ariumPlay=0;window.__ariumFull=0;" +
         "window.addEventListener('keydown',function(e){" +
         "if((e.ctrlKey&&(e.key==='q'||e.key==='Q'))||(e.altKey&&e.key==='F4')){e.preventDefault();window.__ariumExit=1;}" +
@@ -35,6 +37,28 @@ Item {
     // Sends the page to one of its own addresses without loading it afresh
     function go(path) {
         web.runJavaScript("window.__ariumGo?window.__ariumGo('" + path + "'):location.assign('" + path + "')")
+    }
+
+    // Arium could not be reached: its own screen in place of the page, trying again by itself
+    property bool unreachable: false
+
+    function tryAgain() {
+        arium.note("trying Arium again")
+        web.url = arium.url
+        web.reload()
+    }
+
+    Timer {
+        interval: 5000
+        repeat: true
+        running: ariumWeb.unreachable && stackView.depth === 1
+        onTriggered: tryAgain()
+    }
+
+    // Tells the page a stream has ended other than by the middle button, so it can show the game
+    // that stream was for if the game did not end with it
+    function returned() {
+        web.runJavaScript("window.__ariumReturned&&window.__ariumReturned()")
     }
 
     // Hands the gaming PC a pairing PIN through the page, which is signed in to Arium; `told` is
@@ -92,6 +116,11 @@ Item {
                 pressesNoted++
                 arium.note("press: " + name + (coming ? " -> " + SdlGamepadKeyNavigation.describeGamepads() : ""))
             }
+            if (unreachable) {
+                if (name === "a") tryAgain()
+                else if (name === "b") Qt.quit()
+                return
+            }
             if (stackView.depth === 1 && name !== "disconnected" && name.indexOf("released") !== 0) {
                 web.runJavaScript("window.__ariumPad&&window.__ariumPad('" + name + "')")
             }
@@ -126,12 +155,16 @@ Item {
         id: web
         anchors.fill: parent
         url: arium.url
+        // A web view is a window of its own and cannot be drawn over: hidden for the screen below
+        visible: !ariumWeb.unreachable
 
         onLoadingChanged: function(request) {
             if (request.status === WebView.LoadSucceededStatus) {
                 arium.note("loaded " + request.url)
                 runJavaScript(hook, function(result) {
                     arium.note("hook: " + result)
+                    ariumWeb.unreachable = result === "not arium"
+                    if (ariumWeb.unreachable) return
                     padReport.restart()
                     if (arium.testPlayAfter > 0 && !testPlay.done) {
                         testPlay.done = true
@@ -141,6 +174,7 @@ Item {
             }
             else if (request.status === WebView.LoadFailedStatus) {
                 arium.note("load failed " + request.url + " " + request.errorString)
+                ariumWeb.unreachable = true
             }
         }
 
@@ -191,5 +225,60 @@ Item {
             }
             playsSeen = marks[0]
         })
+    }
+
+    // Arium's picture with what is wrong, and the two ways on (by mouse, keyboard or controller)
+    Rectangle {
+        anchors.fill: parent
+        visible: ariumWeb.unreachable
+        color: "black"
+
+        Image {
+            anchors.fill: parent
+            fillMode: Image.PreserveAspectFit
+            source: "qrc:/res/arium_background.png"
+            smooth: true
+            mipmap: true
+            opacity: 0.35
+        }
+
+        Column {
+            anchors.centerIn: parent
+            spacing: 24
+
+            Label {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "Can't reach Arium"
+                color: "white"
+                font.pointSize: 28
+                font.bold: true
+            }
+            Label {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "Trying again every few seconds. Check this PC is online."
+                color: "#bbbbbb"
+                font.pointSize: 14
+            }
+            Row {
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 16
+                Button {
+                    text: "(A)  Try again"
+                    font.pointSize: 14
+                    onClicked: ariumWeb.tryAgain()
+                }
+                Button {
+                    text: "(B)  Exit"
+                    font.pointSize: 14
+                    onClicked: Qt.quit()
+                }
+            }
+        }
+
+        focus: visible
+        Keys.onPressed: function(event) {
+            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) ariumWeb.tryAgain()
+            else if (event.key === Qt.Key_Escape || (event.key === Qt.Key_Q && (event.modifiers & Qt.ControlModifier))) Qt.quit()
+        }
     }
 }

@@ -18,6 +18,8 @@ Item {
     property string gamingPc: ""
     // Gone back to the page: anything the bridge says after that is not for this screen
     property bool done: false
+    // A stream was started (the session object itself is let go of once it has finished)
+    property bool streamed: false
 
     // (This screen is made by AriumWeb.qml, where "ariumWeb" is that page itself; from main.qml's
     // side the same name is the Loader that holds it.)
@@ -35,6 +37,9 @@ Item {
             return
         }
         arium.note("back to the page" + (problem ? " after: " + problem : ""))
+        // A stream that ended (not one that never began): the page shows the game it was for, if
+        // the game did not end with it
+        if (streamed) page.returned()
         stackView.pop(StackView.Immediate)
     }
 
@@ -121,7 +126,7 @@ Item {
     }
 
     Timer { id: executeTimer; interval: 50; onTriggered: begin() }
-    Timer { id: startTimer; interval: 0; onTriggered: { gc(); arium.armTestLeave(); session.start() } }
+    Timer { id: startTimer; interval: 0; onTriggered: { gc(); arium.armTestLeave(); streamed = true; session.start() } }
     Timer { id: problemTimer; interval: 6000; onTriggered: finish() }
 
     Rectangle {
