@@ -546,10 +546,11 @@ unix:!macx: {
     INSTALLS += target desktop icons appstream
 }
 win32 {
-    RC_ICONS = moonlight.ico
-    QMAKE_TARGET_COMPANY = Moonlight Game Streaming Project
-    QMAKE_TARGET_DESCRIPTION = Moonlight Game Streaming Client
-    QMAKE_TARGET_PRODUCT = Moonlight
+    RC_ICONS = arium.ico
+    QMAKE_TARGET_COMPANY = Arium
+    QMAKE_TARGET_DESCRIPTION = Arium
+    QMAKE_TARGET_PRODUCT = Arium
+    QMAKE_TARGET_COPYRIGHT = Based on Moonlight (GPLv3)
 
     CONFIG -= embed_manifest_exe
     QMAKE_LFLAGS += /MANIFEST:embed /MANIFESTINPUT:$${PWD}/Moonlight.exe.manifest
@@ -580,4 +581,7 @@ macx {
 }
 
 VERSION = "$$cat(version.txt)"
+# The Arium app's own version, which the exe's version details and its installer show.
+# VERSION_STR stays Moonlight's, which Moonlight's own code compares against.
+win32: VERSION = "$$cat(arium-version.txt)"
 DEFINES += VERSION_STR=\\\"$$cat(version.txt)\\\"
