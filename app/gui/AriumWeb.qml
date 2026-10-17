@@ -207,8 +207,10 @@ Item {
         repeat: true
         running: ariumWeb.visible
         // The page's marks: Play (counted up once per press, with where the gaming PC is), Exit
-        // (its menu's Exit, or Ctrl+Q) and F11
-        onTriggered: web.runJavaScript("JSON.stringify([window.__ariumPlay||0,window.__ariumExit||0,window.__ariumFull||0,window.__ariumGamingPc||''])", function(result) {
+        // (its menu's Exit, or Ctrl+Q) and full screen (F11, or the video player's button). The page
+        // is told first whether the window is full screen, with an event when that has changed.
+        onTriggered: web.runJavaScript("(function(f){if(window.__ariumFullScreen!==f){window.__ariumFullScreen=f;window.dispatchEvent(new Event('ariumfullscreenchange'))}})(" + arium.fullScreen + ");" +
+                                       "JSON.stringify([window.__ariumPlay||0,window.__ariumExit||0,window.__ariumFull||0,window.__ariumGamingPc||''])", function(result) {
             var marks
             try { marks = JSON.parse(result) } catch (e) { return }
             if (marks[1] > 0) {
