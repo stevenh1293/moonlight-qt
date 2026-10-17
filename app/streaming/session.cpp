@@ -16,6 +16,7 @@
 #endif
 
 #ifdef Q_OS_WIN32
+#include <SDL_syswm.h>
 // Scaling the icon down on Win32 looks dreadful, so render at lower res
 #define ICON_SIZE 32
 #else
@@ -2367,6 +2368,18 @@ DispatchDeferredCleanup:
         }
 #endif
     }
+
+#ifdef Q_OS_WIN32
+    // Arium: hide the stream's window before SDL destroys it. SDL first takes a full screen window
+    // out of full screen, which shows it for a moment as a framed window on the desktop.
+    if (m_Window != nullptr) {
+        SDL_SysWMinfo info;
+        SDL_VERSION(&info.version);
+        if (SDL_GetWindowWMInfo(m_Window, &info) && info.subsystem == SDL_SYSWM_WINDOWS) {
+            ShowWindow(info.info.win.window, SW_HIDE);
+        }
+    }
+#endif
 
     // This must be called after the decoder is deleted, because
     // the renderer may want to interact with the window
