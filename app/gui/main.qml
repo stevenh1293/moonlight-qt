@@ -22,6 +22,28 @@ ApplicationWindow {
     width: 1280
     height: 600
 
+    // Arium: an update being installed, behind the "Updating" screen; the app closes once its
+    // installer has started, and the installer opens the app again
+    property bool ariumUpdating: false
+
+    // Only with an update ready, and never while a game is being streamed (a stream's screens are
+    // on top of the first one; at start there may be none yet)
+    function startUpdate() {
+        if (ariumUpdating || ariumUpdater.state !== "ready" || stackView.depth > 1) return
+        ariumUpdating = true
+        ariumUpdateTimer.start()
+    }
+
+    Timer {
+        id: ariumUpdateTimer
+        // The screen is drawn before the installer starts
+        interval: 400
+        onTriggered: {
+            if (ariumUpdater.apply()) Qt.quit()
+            else ariumUpdating = false
+        }
+    }
+
     // This function runs prior to creation of the initial StackView item
     function doEarlyInit() {
         // Override the background color to Material 2 colors for Qt 6.5+
@@ -40,6 +62,8 @@ ApplicationWindow {
             // Full screen or a window, as last chosen with F11
             if (arium.fullScreen) window.showFullScreen()
             else window.showMaximized()
+            // An update downloaded last time is installed now, before anything else
+            if (ariumUpdater.state === "ready") startUpdate()
         }
         else if (SystemProperties.hasDesktopEnvironment) {
             if (StreamingPreferences.uiDisplayMode == StreamingPreferences.UI_MAXIMIZED) {
@@ -176,6 +200,30 @@ ApplicationWindow {
         active: ariumMode
         visible: stackView.depth === 1
         source: "AriumWeb.qml"
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        visible: ariumUpdating
+        color: "black"
+        z: 1000
+
+        Image {
+            anchors.fill: parent
+            fillMode: Image.PreserveAspectFit
+            source: "qrc:/res/arium_background.png"
+            smooth: true
+            mipmap: true
+        }
+
+        Label {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: parent.height / 8
+            text: "Updating"
+            color: "white"
+            font.pointSize: 22
+        }
     }
 
     // This timer keeps us polling for 5 minutes of inactivity

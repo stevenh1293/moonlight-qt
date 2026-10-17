@@ -12,6 +12,10 @@ Item {
     // How many times the page has asked to play, and to switch between full screen and a window, as last seen here
     property int playsSeen: 0
     property int fullSeen: 0
+    // The same for Update now, and for the app's page on the store (offered when an update failed)
+    property int updateNowSeen: 0
+    property int storeSeen: 0
+    readonly property string storePage: "https://appstore.stevenhomeserver.com/apps/b15bce7fbea24f89863712c18887f0ce/download"
     property double lastPlayAt: 0
 
     // Runs in the page after every load: marks it as being in the app, and gives it the app's own
@@ -210,7 +214,8 @@ Item {
         // (its menu's Exit, or Ctrl+Q) and full screen (F11, or the video player's button). The page
         // is told first whether the window is full screen, with an event when that has changed.
         onTriggered: web.runJavaScript("(function(f){if(window.__ariumFullScreen!==f){window.__ariumFullScreen=f;window.dispatchEvent(new Event('ariumfullscreenchange'))}})(" + arium.fullScreen + ");" +
-                                       "JSON.stringify([window.__ariumPlay||0,window.__ariumExit||0,window.__ariumFull||0,window.__ariumGamingPc||''])", function(result) {
+                                       "window.__ariumAppVersion=" + JSON.stringify(ariumUpdater.version) + ";window.__ariumUpdateState=" + JSON.stringify(ariumUpdater.state) + ";" +
+                                       "JSON.stringify([window.__ariumPlay||0,window.__ariumExit||0,window.__ariumFull||0,window.__ariumGamingPc||'',window.__ariumUpdateNow||0,window.__ariumOpenStore||0])", function(result) {
             var marks
             try { marks = JSON.parse(result) } catch (e) { return }
             if (marks[1] > 0) {
@@ -221,11 +226,25 @@ Item {
             // Counts lower than last seen: the page was loaded afresh
             if (marks[2] > fullSeen) arium.fullScreen = !arium.fullScreen
             fullSeen = marks[2]
+            if (marks[4] > updateNowSeen) window.startUpdate()
+            updateNowSeen = marks[4]
+            if (marks[5] > storeSeen) Qt.openUrlExternally(storePage)
+            storeSeen = marks[5]
             if (marks[0] > playsSeen) {
                 playsSeen = marks[0]
                 playAsked(marks[3])
             }
             playsSeen = marks[0]
+        })
+    }
+
+    // The newest build Arium keeps, as the page last heard it: downloaded if newer than this app
+    Timer {
+        interval: 5000
+        repeat: true
+        running: ariumWeb.visible
+        onTriggered: web.runJavaScript("window.__ariumUpdate?JSON.stringify(window.__ariumUpdate):''", function(result) {
+            if (result) ariumUpdater.offered(result, arium.url)
         })
     }
 

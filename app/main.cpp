@@ -44,6 +44,7 @@
 #include "cli/quitstream.h"
 #include "cli/startstream.h"
 #include "arium/ariumbridge.h"
+#include "arium/ariumupdater.h"
 #include "cli/pair.h"
 #include "cli/commandlineparser.h"
 #include "path.h"
@@ -1051,7 +1052,9 @@ int main(int argc, char *argv[])
     if (hasGUI) {
         engine.rootContext()->setContextProperty("initialView", initialView);
         engine.rootContext()->setContextProperty("ariumMode", commandLineParserResult == GlobalCommandLineParser::NormalStartRequested);
-        engine.rootContext()->setContextProperty("arium", new AriumBridge(&app));
+        AriumBridge* ariumBridge = new AriumBridge(&app);
+        engine.rootContext()->setContextProperty("arium", ariumBridge);
+        engine.rootContext()->setContextProperty("ariumUpdater", new AriumUpdater(ariumBridge, &app));
         engine.rootContext()->setContextProperty("runConfigChecks", commandLineParserResult == GlobalCommandLineParser::NormalStartRequested);
 
         // Load the main.qml file

@@ -227,6 +227,7 @@ HEADERS += \
     cli/quitstream.h \
     cli/startstream.h \
     arium/ariumbridge.h \
+    arium/ariumupdater.h \
     settings/streamingpreferences.h \
     streaming/input/input.h \
     streaming/session.h \
@@ -584,4 +585,5 @@ VERSION = "$$cat(version.txt)"
 # The Arium app's own version, which the exe's version details and its installer show.
 # VERSION_STR stays Moonlight's, which Moonlight's own code compares against.
 win32: VERSION = "$$cat(arium-version.txt)"
+DEFINES += ARIUM_VERSION_STR=\\\"$$cat(arium-version.txt)\\\"
 DEFINES += VERSION_STR=\\\"$$cat(version.txt)\\\"
