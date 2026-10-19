@@ -60,6 +60,13 @@ public:
     // page's own, which the link is under. Downloaded if newer than this app and not already here.
     Q_INVOKABLE void offered(const QString& json, const QString& origin)
     {
+#ifndef Q_OS_WIN32
+        // Arium's builds are Windows installers. The Linux box is updated from the server instead
+        // (arium-box's arium-push), so nothing is downloaded and the page never offers Update now.
+        Q_UNUSED(json);
+        Q_UNUSED(origin);
+        return;
+#endif
         const QJsonObject build = QJsonDocument::fromJson(json.toUtf8()).object();
         const QVersionNumber offeredVersion = QVersionNumber::fromString(build.value("version").toString());
         const QString sha256 = build.value("sha256").toString();
@@ -104,6 +111,10 @@ public:
     // Its bytes are checked again first. Not run twice for one version: see the constructor.
     Q_INVOKABLE bool apply()
     {
+#ifndef Q_OS_WIN32
+        // Nothing is ever downloaded here (see offered())
+        return false;
+#endif
         if (m_State != "ready" || !checked()) {
             if (m_State == "ready") setState("");
             return false;

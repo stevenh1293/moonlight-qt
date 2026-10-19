@@ -758,13 +758,23 @@ int main(int argc, char *argv[])
         SDL_SetHint("SDL_VIDEO_WAYLAND_MODE_SCALING", "aspect");
     }
 
-    // Arium: the library is Arium's own web page, drawn by Edge's engine
-    qputenv("QT_WEBVIEW_PLUGIN", "webview2");
+    // Arium: the library is Arium's own web page, drawn by Edge's engine on Windows and by
+    // QtWebEngine (Chromium) elsewhere.
     // The page may make sound without waiting for a click: its controller sounds, and music or a
     // film started with the controller, would otherwise be silent until the mouse was used once.
+#ifdef Q_OS_WIN32
+    qputenv("QT_WEBVIEW_PLUGIN", "webview2");
     if (!qEnvironmentVariableIsSet("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS")) {
         qputenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--autoplay-policy=no-user-gesture-required");
     }
+#else
+    if (!qEnvironmentVariableIsSet("QT_WEBVIEW_PLUGIN")) {
+        qputenv("QT_WEBVIEW_PLUGIN", "webengine");
+    }
+    if (!qEnvironmentVariableIsSet("QTWEBENGINE_CHROMIUM_FLAGS")) {
+        qputenv("QTWEBENGINE_CHROMIUM_FLAGS", "--autoplay-policy=no-user-gesture-required");
+    }
+#endif
     QtWebView::initialize();
 
     QGuiApplication app(argc, argv);
