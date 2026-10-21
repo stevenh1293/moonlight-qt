@@ -5,6 +5,9 @@
 
 #include "SDL_compat.h"
 
+// Arium: the stream's main loop ends a middle-button press sent to the game (gamepad.cpp)
+#define SDL_CODE_ARIUM_GUIDE_TAP_END 106
+
 struct GamepadState {
     SDL_GameController* controller;
     SDL_JoystickID jsId;
@@ -18,6 +21,11 @@ struct GamepadState {
 
     SDL_TimerID mouseEmulationTimer;
     uint32_t lastStartDownTime;
+
+    // Arium: when the middle button went down, while it is sent to the game only as a short
+    // press (ARIUM_GUIDE_TO_GAME); and how many such presses are still being held for the game
+    uint32_t ariumGuideDownTime;
+    int ariumGuideTaps;
 
     bool clickpadButtonEmulationEnabled;
     bool emulatedClickpadButtonDown;
@@ -128,6 +136,9 @@ public:
 
     void setAdaptiveTriggers(uint16_t controllerNumber, DualSenseOutputReport *report);
 
+    // Arium: ends a middle-button press sent to the game (on the main thread, from the timer's event)
+    void ariumGuideTapEnd(SDL_JoystickID id);
+
     void handleTouchFingerEvent(SDL_TouchFingerEvent* event);
 
     int getAttachedGamepadMask();
@@ -192,6 +203,9 @@ private:
     Uint32 longPressTimerCallback(Uint32 interval, void* param);
 
     static
+    Uint32 ariumGuideTapEndCallback(Uint32 interval, void* param);
+
+    static
     Uint32 mouseEmulationTimerCallback(Uint32 interval, void* param);
 
     static
@@ -209,6 +223,8 @@ private:
     bool m_SwapMouseButtons;
     bool m_ReverseScrollDirection;
     bool m_SwapFaceButtons;
+    // Arium: ARIUM_GUIDE_TO_GAME, read once
+    bool m_AriumGuideToGame;
 
     bool m_NeedsManualCaptureOnLeave;
     bool m_MouseWasInVideoRegion;

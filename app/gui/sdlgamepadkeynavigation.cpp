@@ -144,7 +144,14 @@ static const char* ariumButtonName(Uint8 button)
 void SdlGamepadKeyNavigation::pollForArium()
 {
     SDL_Event event;
+#ifdef Q_OS_LINUX
+    // SDL 3 (under sdl2-compat) reads udev's news of a controller plugged in or switched on only
+    // while it pumps events, never in SDL_JoystickUpdate(), so a controller that connects after
+    // start-up would never be seen. Every event is taken off the queue below, so pumping is safe.
+    SDL_PumpEvents();
+#else
     SDL_JoystickUpdate();
+#endif
 
     if (m_FirstPoll) {
         SDL_FlushEvent(SDL_CONTROLLERBUTTONDOWN);
@@ -165,7 +172,13 @@ void SdlGamepadKeyNavigation::pollForArium()
         switch (event.type) {
         case SDL_QUIT:
             // Left over from a stream (how it was left), never a request to close the app:
-            // the app is closed by its own Exit.
+            // the app is closed by its own Exit. Except started only to stream (the box's Steam
+            // tile), where it can only be the box asking it to close (SIGTERM, which SDL turns
+            // into this) before the stream has begun.
+            if (qgetenv("ARIUM_STREAM_ONLY") == "1") {
+                QCoreApplication::quit();
+                return;
+            }
             break;
         case SDL_CONTROLLERBUTTONDOWN:
         {

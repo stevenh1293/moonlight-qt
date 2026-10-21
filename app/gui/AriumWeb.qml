@@ -69,6 +69,7 @@ Item {
     // given how that went ("sent", or why not) once the page knows, or "" if it never says.
     function passPin(pin, name, told) {
         web.runJavaScript("window.__ariumPair?(window.__ariumPair(" + JSON.stringify(pin) + "," + JSON.stringify(name) + "),'asked'):'not signed in'", function(result) {
+            arium.note("PIN handed to the page: " + result)
             if (result !== "asked") {
                 told("Sign in to Arium first.")
                 return
@@ -88,12 +89,67 @@ Item {
         onTriggered: web.runJavaScript("window.__ariumPairSent||''", function(result) {
             if (result || ++tries > 40) {
                 stop()
+                arium.note("the page passed the PIN on: " + (result || "no answer"))
                 told(result || "")
             }
         })
     }
 
+    // Stream-only (ARIUM_STREAM_ONLY): the page is signed in to Arium, which says where the gaming
+    // PC is; the app then plays as if Play had been pressed. The page itself is never shown.
+    property bool streamOnlyAsked: false
+    // Asked only once the page is ready to pass a pairing PIN on (__ariumPair), which it sets up
+    // a moment after it notices it is in the app: a stream asked for sooner can't pair.
+    readonly property string streamOnlyPlay: "fetch('/api/games/app',{credentials:'same-origin'})" +
+        ".then(function(r){if(!r.ok)throw new Error(r.status===401?'Sign in to Arium in the Arium app first.':'Arium answered '+r.status);return r.json()})" +
+        ".then(function(j){if(!j.gamingPc)throw new Error(\"Arium doesn't know where the gaming PC is.\");window.__ariumGamingPc=j.gamingPc;window.__ariumPlay=(window.__ariumPlay||0)+1})" +
+        ".catch(function(e){window.__ariumStreamOnlyError=String(e.message||e)});'asked'"
+    property string streamOnlyProblem: ""
+
+    Timer {
+        id: streamOnlyCheck
+        interval: 500
+        repeat: true
+        property int tries: 0
+        running: arium.streamOnly && ariumWeb.streamOnlyAsked && stackView.depth === 1 && ariumWeb.streamOnlyProblem === ""
+        onTriggered: web.runJavaScript("window.__ariumStreamOnlyError||''", function(result) {
+            // Not signed in, or Arium's answer never came: said on screen, then the app closes
+            if (result || ++tries > 40) ariumWeb.streamOnlyFailed(result || "Arium didn't say where the gaming PC is.")
+        })
+    }
+
+    // Waits for the page to be ready (above), up to 20 s; a page that never is isn't signed in
+    Timer {
+        id: streamOnlyReady
+        interval: 250
+        repeat: true
+        property int tries: 0
+        onTriggered: web.runJavaScript("typeof window.__ariumPair==='function'", function(ready) {
+            if (!streamOnlyReady.running) return
+            if (ready) {
+                streamOnlyReady.stop()
+                ariumWeb.streamOnlyAsked = true
+                arium.note("stream-only: asking Arium where the gaming PC is")
+                web.runJavaScript(ariumWeb.streamOnlyPlay)
+            }
+            else if (++streamOnlyReady.tries > 80) {
+                streamOnlyReady.stop()
+                ariumWeb.streamOnlyFailed("Sign in to Arium in the Arium app first.")
+            }
+        })
+    }
+
+    function streamOnlyFailed(text) {
+        streamOnlyProblem = text
+        arium.note("stream-only: " + text)
+        streamOnlyQuit.start()
+    }
+
+    Timer { id: streamOnlyQuit; interval: 6000; onTriggered: Qt.quit() }
+
     function playAsked(gamingPc) {
+        // (stream-only, given up on already and closing: an answer that came too late plays nothing)
+        if (arium.streamOnly && streamOnlyProblem !== "") return
         var now = Date.now()
         if (now - lastPlayAt < 3000 || stackView.depth !== 1) {
             return
@@ -125,7 +181,8 @@ Item {
                 else if (name === "b") Qt.quit()
                 return
             }
-            if (stackView.depth === 1 && name !== "disconnected" && name.indexOf("released") !== 0) {
+            // (Stream-only: the page is out of sight, so presses are not for it)
+            if (stackView.depth === 1 && !arium.streamOnly && name !== "disconnected" && name.indexOf("released") !== 0) {
                 web.runJavaScript("window.__ariumPad&&window.__ariumPad('" + name + "')")
             }
         }
@@ -159,8 +216,9 @@ Item {
         id: web
         anchors.fill: parent
         url: arium.url
-        // A web view is a window of its own and cannot be drawn over: hidden for the screen below
-        visible: !ariumWeb.unreachable
+        // A web view is a window of its own and cannot be drawn over: hidden for the screen below,
+        // and in stream-only, where it is only there to be signed in
+        visible: !ariumWeb.unreachable && !arium.streamOnly
 
         onLoadingChanged: function(request) {
             if (request.status === WebView.LoadSucceededStatus) {
@@ -170,6 +228,14 @@ Item {
                     ariumWeb.unreachable = result === "not arium"
                     if (ariumWeb.unreachable) return
                     padReport.restart()
+                    // (and again if the page loads afresh before the stream has begun: what it was
+                    // asked went with the old page)
+                    if (arium.streamOnly && stackView.depth === 1 && ariumWeb.streamOnlyProblem === "") {
+                        ariumWeb.streamOnlyAsked = false
+                        streamOnlyCheck.tries = 0
+                        streamOnlyReady.tries = 0
+                        streamOnlyReady.restart()
+                    }
                     if (arium.testPlayAfter > 0 && !testPlay.done) {
                         testPlay.done = true
                         testPlay.start()
@@ -246,6 +312,30 @@ Item {
         onTriggered: web.runJavaScript("window.__ariumUpdate?JSON.stringify(window.__ariumUpdate):''", function(result) {
             if (result) ariumUpdater.offered(result, arium.url)
         })
+    }
+
+    // Stream-only: Arium's picture until the stream's own screen takes over, or what went wrong
+    Rectangle {
+        anchors.fill: parent
+        visible: arium.streamOnly && !ariumWeb.unreachable
+        color: "black"
+
+        Image {
+            anchors.fill: parent
+            fillMode: Image.PreserveAspectFit
+            source: "qrc:/res/arium_background.png"
+            smooth: true
+            mipmap: true
+        }
+
+        Label {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 80
+            text: ariumWeb.streamOnlyProblem
+            color: "white"
+            font.pointSize: 18
+        }
     }
 
     // Arium's picture with what is wrong, and the two ways on (by mouse, keyboard or controller)

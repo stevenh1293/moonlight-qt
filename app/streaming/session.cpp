@@ -2043,6 +2043,9 @@ void Session::exec()
                 m_InputHandler->setAdaptiveTriggers((uint16_t)(uintptr_t)event.user.data1,
                                                     (DualSenseOutputReport *)event.user.data2);
                 break;
+            case SDL_CODE_ARIUM_GUIDE_TAP_END:
+                m_InputHandler->ariumGuideTapEnd((SDL_JoystickID)(intptr_t)event.user.data1);
+                break;
             default:
                 SDL_assert(false);
             }

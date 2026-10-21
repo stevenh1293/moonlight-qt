@@ -20,6 +20,9 @@ Item {
     property bool done: false
     // A stream was started (the session object itself is let go of once it has finished)
     property bool streamed: false
+    // The stream's connection was made: a stream-only app that ends after that (the box's Home
+    // closing it, say) closes at once, with no error shown for the connection it ended
+    property bool connected: false
 
     // (This screen is made by AriumWeb.qml, where "ariumWeb" is that page itself; from main.qml's
     // side the same name is the Loader that holds it.)
@@ -28,6 +31,12 @@ Item {
     function finish() {
         if (done) return
         done = true
+        // Started only for this stream: nothing to go back to
+        if (arium.streamOnly) {
+            arium.note("stream-only: closing" + (problem ? " after: " + problem : ""))
+            Qt.quit()
+            return
+        }
         // Left with the middle button: the page goes to its screen for the game still running,
         // and is given a moment to get there behind this black screen before it shows.
         if (arium.takeLeftByMiddleButton() && !problem) {
@@ -58,6 +67,7 @@ Item {
         function onReady() { stream() }
         function onFailed(text) { fail(text) }
         function onPinToPass(pin, name) {
+            arium.note("handing the pairing PIN to the page")
             page.passPin(pin, name, function(told) {
                 // The PIN never reached the gaming PC: say why rather than wait out the pairing
                 if (told !== "sent") fail(told || "This PC couldn't be set up for games.")
@@ -98,10 +108,10 @@ Item {
             problem = "Starting " + stage + " failed: error " + errorCode
         })
         session.displayLaunchError.connect(function(text) { problem = text })
-        session.connectionStarted.connect(function() { arium.note("connection started") })
+        session.connectionStarted.connect(function() { connected = true; arium.note("connection started") })
         session.sessionFinished.connect(function(portTestResult) {
             arium.note("session finished")
-            if (problem) {
+            if (problem && !(arium.streamOnly && connected)) {
                 problemTimer.start()
             }
             else {

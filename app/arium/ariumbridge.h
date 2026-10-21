@@ -35,6 +35,7 @@ class AriumBridge : public QObject
     Q_PROPERTY(int testPlayAfter READ testPlayAfter CONSTANT)
     Q_PROPERTY(QString testPresses READ testPresses CONSTANT)
     Q_PROPERTY(bool fullScreen READ fullScreen WRITE setFullScreen NOTIFY fullScreenChanged)
+    Q_PROPERTY(bool streamOnly READ streamOnly CONSTANT)
 
 public:
     explicit AriumBridge(QObject *parent = nullptr) : QObject(parent) {}
@@ -43,6 +44,13 @@ public:
     QString url() const
     {
         return qEnvironmentVariable("ARIUM_URL", "https://arium.stevenhomeserver.com/games");
+    }
+
+    // Started only to stream the gaming PC's ARIUM_ENTRY (the Arium box's Steam tile, say): the
+    // page stays out of sight, the stream starts at once, and the app closes when it ends
+    bool streamOnly() const
+    {
+        return qEnvironmentVariable("ARIUM_STREAM_ONLY") == "1";
     }
 
     // For trying it with no controller to hand: presses to hand the page, by name, comma-separated

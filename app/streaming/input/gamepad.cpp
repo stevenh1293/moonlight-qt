@@ -157,6 +157,33 @@ void SdlInputHandler::sendGamepadBatteryState(GamepadState* state, SDL_JoystickP
     LiSendControllerBatteryEvent(state->index, batteryState, batteryPercentage);
 }
 
+// Arium: the end of a middle-button press sent to the game (below), 100 ms after its start.
+// This runs on SDL's timer thread, so it only asks the stream's main loop to end the press
+// (session.cpp), where the controller may since have gone and is looked up afresh.
+Uint32 SdlInputHandler::ariumGuideTapEndCallback(Uint32, void* param)
+{
+    SDL_Event event;
+    SDL_zero(event);
+    event.type = SDL_USEREVENT;
+    event.user.code = SDL_CODE_ARIUM_GUIDE_TAP_END;
+    event.user.data1 = param;
+    SDL_PushEvent(&event);
+    return 0;
+}
+
+void SdlInputHandler::ariumGuideTapEnd(SDL_JoystickID id)
+{
+    GamepadState* state = findStateForGamepad(id);
+    // Gone since, or another press still being held for the game
+    if (state == nullptr || state->ariumGuideTaps <= 0 || --state->ariumGuideTaps > 0) {
+        return;
+    }
+    state->buttons &= ~SPECIAL_FLAG;
+    if (state->mouseEmulationTimer == 0) {
+        sendGamepadState(state);
+    }
+}
+
 Uint32 SdlInputHandler::mouseEmulationTimerCallback(Uint32 interval, void *param)
 {
     auto gamepad = reinterpret_cast<GamepadState*>(param);
@@ -293,7 +320,33 @@ void SdlInputHandler::handleControllerButtonEvent(SDL_ControllerButtonEvent* eve
 
     // Arium: the middle button is the app's own. One press leaves the game and
     // returns to the library; the game is not closed, and is not sent the button.
-    if (event->button == SDL_CONTROLLER_BUTTON_GUIDE && qgetenv("ARIUM_GUIDE_TO_GAME") != "1") {
+    // Arium, streaming for the box's Steam tile (ARIUM_GUIDE_TO_GAME): the middle button is the
+    // game's (Steam's menu), but only a short press. Holding it is the box's way Home, and a held
+    // guide must not reach the gaming PC: Windows opens Task View for it. So nothing is sent while
+    // it is down; let go within a second, and the game gets a press of 100 ms.
+    if (event->button == SDL_CONTROLLER_BUTTON_GUIDE && m_AriumGuideToGame) {
+        if (event->state == SDL_PRESSED) {
+            state->ariumGuideDownTime = SDL_GetTicks();
+        }
+        else if (state->ariumGuideDownTime != 0 && SDL_GetTicks() - state->ariumGuideDownTime < 1000) {
+            state->ariumGuideDownTime = 0;
+            state->ariumGuideTaps++;
+            state->buttons |= SPECIAL_FLAG;
+            if (state->mouseEmulationTimer == 0) {
+                sendGamepadState(state);
+            }
+            // (no timer: the press ends at once rather than staying held on the gaming PC)
+            if (SDL_AddTimer(100, SdlInputHandler::ariumGuideTapEndCallback, (void*)(intptr_t)event->which) == 0) {
+                ariumGuideTapEnd(event->which);
+            }
+        }
+        else {
+            state->ariumGuideDownTime = 0;
+        }
+        return;
+    }
+
+    if (event->button == SDL_CONTROLLER_BUTTON_GUIDE) {
         // Once per stream: a second press would leave a quit behind that closes the whole app
         if (event->state == SDL_PRESSED && !g_AriumLeftByMiddleButton) {
             SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Middle button: leaving the game");
