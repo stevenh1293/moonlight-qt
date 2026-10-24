@@ -261,7 +261,9 @@ void SdlGamepadKeyNavigation::pollForArium()
     for (int t = 0; t < 2; t++) {
         int most = 0;
         for (auto gc : std::as_const(m_Gamepads)) {
-            most = std::max(most, int(SDL_GameControllerGetAxis(gc, t == 0 ? SDL_CONTROLLER_AXIS_TRIGGERLEFT : SDL_CONTROLLER_AXIS_TRIGGERRIGHT)));
+            // (not std::max, which windows.h's max macro breaks)
+            int pulled = SDL_GameControllerGetAxis(gc, t == 0 ? SDL_CONTROLLER_AXIS_TRIGGERLEFT : SDL_CONTROLLER_AXIS_TRIGGERRIGHT);
+            if (pulled > most) most = pulled;
         }
         if (!m_AriumTriggers[t] && most > 16384) {
             m_AriumTriggers[t] = true;
