@@ -119,7 +119,28 @@ QString SdlGamepadKeyNavigation::describeGamepads()
     return QString("%1 opened: %2").arg(names.size()).arg(names.join(" ; "));
 }
 
-// Arium: every press as a name for the page; a held direction repeats.
+// Arium: a button's name for the page (null for the D-pad, which goes with the left stick below)
+static const char* ariumButtonName(Uint8 button)
+{
+    switch (button) {
+    case SDL_CONTROLLER_BUTTON_A: return "a";
+    case SDL_CONTROLLER_BUTTON_B: return "b";
+    case SDL_CONTROLLER_BUTTON_X: return "x";
+    case SDL_CONTROLLER_BUTTON_Y: return "y";
+    case SDL_CONTROLLER_BUTTON_LEFTSHOULDER: return "lb";
+    case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: return "rb";
+    case SDL_CONTROLLER_BUTTON_LEFTSTICK: return "ls";
+    case SDL_CONTROLLER_BUTTON_RIGHTSTICK: return "rs";
+    case SDL_CONTROLLER_BUTTON_BACK: return "view";
+    case SDL_CONTROLLER_BUTTON_START: return "menu";
+    case SDL_CONTROLLER_BUTTON_GUIDE: return "guide";
+    default: return nullptr;
+    }
+}
+
+// Arium: every press as a name for the page; a held direction repeats. A button let go is told
+// as "release:<name>" (so the page can repeat a held one), whether or not this app is in front:
+// a release can do no harm, and one held back would leave the page repeating.
 void SdlGamepadKeyNavigation::pollForArium()
 {
     SDL_Event event;
@@ -148,21 +169,17 @@ void SdlGamepadKeyNavigation::pollForArium()
             break;
         case SDL_CONTROLLERBUTTONDOWN:
         {
-            const char* name = nullptr;
-            switch (event.cbutton.button) {
-            case SDL_CONTROLLER_BUTTON_A: name = "a"; break;
-            case SDL_CONTROLLER_BUTTON_B: name = "b"; break;
-            case SDL_CONTROLLER_BUTTON_X: name = "x"; break;
-            case SDL_CONTROLLER_BUTTON_Y: name = "y"; break;
-            case SDL_CONTROLLER_BUTTON_LEFTSHOULDER: name = "lb"; break;
-            case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: name = "rb"; break;
-            case SDL_CONTROLLER_BUTTON_BACK: name = "view"; break;
-            case SDL_CONTROLLER_BUTTON_START: name = "menu"; break;
-            case SDL_CONTROLLER_BUTTON_GUIDE: name = "guide"; break;
-            default: break;
-            }
+            const char* name = ariumButtonName(event.cbutton.button);
             if (name != nullptr && inFront) {
                 emit ariumPress(name);
+            }
+            break;
+        }
+        case SDL_CONTROLLERBUTTONUP:
+        {
+            const char* name = ariumButtonName(event.cbutton.button);
+            if (name != nullptr) {
+                emit ariumPress(QString("release:%1").arg(name));
             }
             break;
         }
@@ -236,6 +253,23 @@ void SdlGamepadKeyNavigation::pollForArium()
         if (inFront && (lean > 6500 || lean < -6500)) {
             emit ariumPress(QString("scroll:%1").arg(lean / 32767.0, 0, 'f', 2));
             break;
+        }
+    }
+
+    // The triggers as buttons ("lt", "rt"): down past half way, up again below a quarter
+    static const char* triggerNames[] = { "lt", "rt" };
+    for (int t = 0; t < 2; t++) {
+        int most = 0;
+        for (auto gc : std::as_const(m_Gamepads)) {
+            most = std::max(most, int(SDL_GameControllerGetAxis(gc, t == 0 ? SDL_CONTROLLER_AXIS_TRIGGERLEFT : SDL_CONTROLLER_AXIS_TRIGGERRIGHT)));
+        }
+        if (!m_AriumTriggers[t] && most > 16384) {
+            m_AriumTriggers[t] = true;
+            if (inFront) emit ariumPress(triggerNames[t]);
+        }
+        else if (m_AriumTriggers[t] && most < 8192) {
+            m_AriumTriggers[t] = false;
+            emit ariumPress(QString("release:%1").arg(triggerNames[t]));
         }
     }
 

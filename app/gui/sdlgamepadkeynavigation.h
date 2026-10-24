@@ -55,6 +55,8 @@ private:
     bool m_AriumMode = false;
     int m_AriumDirection = -1;
     Uint32 m_AriumNextRepeat = 0;
+    // Whether each trigger (left, right) is pulled as far as counting as a press
+    bool m_AriumTriggers[2] = { false, false };
 
     void pollForArium();
     Uint32 m_LastAxisNavigationEventTime;
