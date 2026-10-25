@@ -2,10 +2,12 @@
 
 // Arium: what the app's own screens (AriumWeb.qml, AriumStreamSegue.qml) need from the rest of
 // Moonlight: finding the gaming PC, pairing with it without a PIN being shown, starting a stream
-// of its "Arium" entry, and a log.
+// of its "Arium" entry, how it streams (Arium's Settings page sets that), and a log.
 
 #include <QObject>
 #include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QDateTime>
 #include <QTextStream>
 #include <QStandardPaths>
@@ -140,6 +142,98 @@ public:
     }
 
     Q_INVOKABLE QString problem() const { return m_Problem; }
+
+    // How this PC streams, for Arium's Settings page (StreamSettings in Arium's
+    // apps/web/src/lib/ariumApp.ts), with what an automatic bitrate comes to on this screen now.
+    // The resolution, frame rate and bitrate are Arium's own ("screen", 0 and 0 to suit the
+    // screen); the rest are Moonlight's preferences.
+    Q_INVOKABLE QString streamSettings(QWindow* window)
+    {
+        StreamingPreferences* prefs = StreamingPreferences::get();
+        QSettings settings;
+        QJsonObject chosen {
+            {"resolution", resolutionSize(settings.value("arium/resolution").toString()).isValid() ? settings.value("arium/resolution").toString() : "screen"},
+            {"fps", settings.value("arium/fps", 0).toInt()},
+            {"bitrateKbps", settings.value("arium/bitrateKbps", 0).toInt()},
+            {"codec", codecName(prefs->videoCodecConfig)},
+            {"hdr", prefs->enableHdr},
+            {"yuv444", prefs->enableYUV444},
+            {"decoder", decoderName(prefs->videoDecoderSelection)},
+            {"vsync", prefs->enableVsync},
+            {"framePacing", prefs->framePacing},
+            {"audio", audioName(prefs->audioConfig)},
+            {"audioOnHost", prefs->playAudioOnHost},
+            {"muteOnFocusLoss", prefs->muteOnFocusLoss},
+            {"performanceOverlay", prefs->showPerformanceOverlay},
+            {"connectionWarnings", prefs->connectionWarnings},
+            {"swapFaceButtons", prefs->swapFaceButtons},
+            {"multiController", prefs->multiController},
+            {"gamepadMouse", prefs->gamepadMouse},
+            {"absoluteMouse", prefs->absoluteMouseMode},
+            {"swapMouseButtons", prefs->swapMouseButtons},
+            {"reverseScroll", prefs->reverseScrollDirection},
+            {"gameOptimizations", prefs->gameOptimizations},
+        };
+        int width = 1920, height = 1080, fps = 60;
+        picture(window, width, height, fps);
+        QJsonObject stream {
+            {"settings", chosen},
+            {"automaticKbps", StreamingPreferences::getDefaultBitrate(width, height, fps, prefs->enableYUV444)},
+        };
+        return QString::fromUtf8(QJsonDocument(stream).toJson(QJsonDocument::Compact));
+    }
+
+    // Keeps the settings the page asks for (as streamSettings() gives them), from the next stream
+    // on. Anything missing or out of range is left as it was.
+    Q_INVOKABLE void setStreamSettings(const QString& json)
+    {
+        const QJsonObject asked = QJsonDocument::fromJson(json.toUtf8()).object();
+        if (asked.isEmpty()) return;
+        StreamingPreferences* prefs = StreamingPreferences::get();
+        QSettings settings;
+
+        const QString resolution = asked["resolution"].toString();
+        if (resolution == "screen" || resolutionSize(resolution).isValid()) settings.setValue("arium/resolution", resolution);
+        const int fps = asked["fps"].toInt(-1);
+        if (fps == 0 || (fps >= 30 && fps <= 240)) settings.setValue("arium/fps", fps);
+        const int kbps = asked["bitrateKbps"].toInt(-1);
+        if (kbps == 0 || (kbps >= 500 && kbps <= 500000)) settings.setValue("arium/bitrateKbps", kbps);
+
+        const QString codec = asked["codec"].toString();
+        if (codec == "auto") prefs->videoCodecConfig = StreamingPreferences::VCC_AUTO;
+        else if (codec == "h264") prefs->videoCodecConfig = StreamingPreferences::VCC_FORCE_H264;
+        else if (codec == "hevc") prefs->videoCodecConfig = StreamingPreferences::VCC_FORCE_HEVC;
+        else if (codec == "av1") prefs->videoCodecConfig = StreamingPreferences::VCC_FORCE_AV1;
+        const QString decoder = asked["decoder"].toString();
+        if (decoder == "auto") prefs->videoDecoderSelection = StreamingPreferences::VDS_AUTO;
+        else if (decoder == "hardware") prefs->videoDecoderSelection = StreamingPreferences::VDS_FORCE_HARDWARE;
+        else if (decoder == "software") prefs->videoDecoderSelection = StreamingPreferences::VDS_FORCE_SOFTWARE;
+        const QString audio = asked["audio"].toString();
+        if (audio == "stereo") prefs->audioConfig = StreamingPreferences::AC_STEREO;
+        else if (audio == "5.1") prefs->audioConfig = StreamingPreferences::AC_51_SURROUND;
+        else if (audio == "7.1") prefs->audioConfig = StreamingPreferences::AC_71_SURROUND;
+
+        const auto onOff = [&asked](const char* name, bool& preference) {
+            if (asked[name].isBool()) preference = asked[name].toBool();
+        };
+        onOff("hdr", prefs->enableHdr);
+        onOff("yuv444", prefs->enableYUV444);
+        onOff("vsync", prefs->enableVsync);
+        onOff("framePacing", prefs->framePacing);
+        onOff("audioOnHost", prefs->playAudioOnHost);
+        onOff("muteOnFocusLoss", prefs->muteOnFocusLoss);
+        onOff("performanceOverlay", prefs->showPerformanceOverlay);
+        onOff("connectionWarnings", prefs->connectionWarnings);
+        onOff("swapFaceButtons", prefs->swapFaceButtons);
+        onOff("multiController", prefs->multiController);
+        onOff("gamepadMouse", prefs->gamepadMouse);
+        onOff("absoluteMouse", prefs->absoluteMouseMode);
+        onOff("swapMouseButtons", prefs->swapMouseButtons);
+        onOff("reverseScroll", prefs->reverseScrollDirection);
+        onOff("gameOptimizations", prefs->gameOptimizations);
+        prefs->save();
+        note("stream settings: " + json);
+    }
 
     // For trying it with no controller to hand: leaves the stream as the middle button would,
     // ARIUM_TEST_LEAVE_AFTER seconds from now. Called just before a stream starts.
@@ -282,21 +376,81 @@ private:
         return nullptr;
     }
 
-    // The picture the stream is asked for: the screen the app's window is on, at its own size and
-    // refresh rate, and a bitrate to suit. Set for each stream, so a different screen is matched.
+    // The picture the stream is asked for, and a bitrate to suit, as chosen on Arium's Settings
+    // page: by default the screen the app's window is on, at its own size and refresh rate, and
+    // Moonlight's own bitrate for that. Set for each stream, so a different screen is matched.
     static void pictureFor(QWindow* window)
+    {
+        StreamingPreferences* prefs = StreamingPreferences::get();
+        int width, height, fps;
+        if (!picture(window, width, height, fps)) return;
+        prefs->width = width;
+        prefs->height = height;
+        prefs->fps = fps;
+        int chosen = QSettings().value("arium/bitrateKbps", 0).toInt();
+        prefs->bitrateKbps = chosen > 0 ? chosen : StreamingPreferences::getDefaultBitrate(width, height, fps, prefs->enableYUV444);
+        prefs->windowMode = StreamingPreferences::WM_FULLSCREEN_DESKTOP;
+    }
+
+    // The size and frame rate a stream would be asked for now; false if there is no screen to go by
+    static bool picture(QWindow* window, int& width, int& height, int& fps)
     {
         QScreen* screen = window != nullptr ? window->screen() : nullptr;
         if (screen == nullptr) screen = QGuiApplication::primaryScreen();
-        if (screen == nullptr) return;
-        StreamingPreferences* prefs = StreamingPreferences::get();
+        if (screen == nullptr) return false;
         QSize pixels = screen->size() * screen->devicePixelRatio();
-        int fps = qRound(screen->refreshRate());
-        prefs->width = pixels.width();
-        prefs->height = pixels.height();
-        prefs->fps = fps >= 30 ? fps : 60;
-        prefs->bitrateKbps = StreamingPreferences::getDefaultBitrate(prefs->width, prefs->height, prefs->fps, prefs->enableYUV444);
-        prefs->windowMode = StreamingPreferences::WM_FULLSCREEN_DESKTOP;
+        int rate = qRound(screen->refreshRate());
+        width = pixels.width();
+        height = pixels.height();
+        fps = rate >= 30 ? rate : 60;
+        QSize fixed = resolutionSize(QSettings().value("arium/resolution", "screen").toString());
+        if (fixed.isValid()) {
+            width = fixed.width();
+            height = fixed.height();
+        }
+        int chosenFps = QSettings().value("arium/fps", 0).toInt();
+        if (chosenFps > 0) fps = chosenFps;
+        return true;
+    }
+
+    // A fixed resolution by its name on the Settings page; invalid for "screen" or anything else
+    static QSize resolutionSize(const QString& name)
+    {
+        if (name == "720p") return QSize(1280, 720);
+        if (name == "1080p") return QSize(1920, 1080);
+        if (name == "1440p") return QSize(2560, 1440);
+        if (name == "2160p") return QSize(3840, 2160);
+        return QSize();
+    }
+
+    // The Settings page's names for Moonlight's choices
+    static QString codecName(StreamingPreferences::VideoCodecConfig codec)
+    {
+        switch (codec) {
+        case StreamingPreferences::VCC_FORCE_H264: return "h264";
+        case StreamingPreferences::VCC_FORCE_HEVC:
+        case StreamingPreferences::VCC_FORCE_HEVC_HDR_DEPRECATED: return "hevc";
+        case StreamingPreferences::VCC_FORCE_AV1: return "av1";
+        default: return "auto";
+        }
+    }
+
+    static QString decoderName(StreamingPreferences::VideoDecoderSelection decoder)
+    {
+        switch (decoder) {
+        case StreamingPreferences::VDS_FORCE_HARDWARE: return "hardware";
+        case StreamingPreferences::VDS_FORCE_SOFTWARE: return "software";
+        default: return "auto";
+        }
+    }
+
+    static QString audioName(StreamingPreferences::AudioConfig audio)
+    {
+        switch (audio) {
+        case StreamingPreferences::AC_51_SURROUND: return "5.1";
+        case StreamingPreferences::AC_71_SURROUND: return "7.1";
+        default: return "stereo";
+        }
     }
 
     static void refresh(NvComputer* computer)
