@@ -17,6 +17,10 @@ Item {
     property int storeSeen: 0
     readonly property string storePage: "https://appstore.stevenhomeserver.com/apps/b15bce7fbea24f89863712c18887f0ce/download"
     property double lastPlayAt: 0
+    // How this PC streams, as the app last read it (for the page's Settings), and how many times
+    // the page has asked for it changed, as last seen here
+    property string streamJson: arium.streamSettings(window)
+    property int streamSavesSeen: 0
 
     // Runs in the page after every load: marks it as being in the app, and gives it the app's own
     // keys (Ctrl+Q and Alt+F4 close the app, F11 switches between full screen and a window) and a
@@ -215,7 +219,8 @@ Item {
         // is told first whether the window is full screen, with an event when that has changed.
         onTriggered: web.runJavaScript("(function(f){if(window.__ariumFullScreen!==f){window.__ariumFullScreen=f;window.dispatchEvent(new Event('ariumfullscreenchange'))}})(" + arium.fullScreen + ");" +
                                        "window.__ariumAppVersion=" + JSON.stringify(ariumUpdater.version) + ";window.__ariumUpdateState=" + JSON.stringify(ariumUpdater.state) + ";" +
-                                       "JSON.stringify([window.__ariumPlay||0,window.__ariumExit||0,window.__ariumFull||0,window.__ariumGamingPc||'',window.__ariumUpdateNow||0,window.__ariumOpenStore||0])", function(result) {
+                                       "(function(s){if(window.__ariumStreamJson!==s){window.__ariumStreamJson=s;window.__ariumStream=JSON.parse(s);window.dispatchEvent(new Event('ariumstreamchange'))}})(" + JSON.stringify(ariumWeb.streamJson) + ");" +
+                                       "JSON.stringify([window.__ariumPlay||0,window.__ariumExit||0,window.__ariumFull||0,window.__ariumGamingPc||'',window.__ariumUpdateNow||0,window.__ariumOpenStore||0,window.__ariumStreamSave||0,window.__ariumStreamSet?JSON.stringify(window.__ariumStreamSet):''])", function(result) {
             var marks
             try { marks = JSON.parse(result) } catch (e) { return }
             if (marks[1] > 0) {
@@ -230,12 +235,26 @@ Item {
             updateNowSeen = marks[4]
             if (marks[5] > storeSeen) Qt.openUrlExternally(storePage)
             storeSeen = marks[5]
+            if (marks[6] > streamSavesSeen && marks[7]) {
+                arium.setStreamSettings(marks[7])
+                ariumWeb.streamJson = arium.streamSettings(window)
+            }
+            streamSavesSeen = marks[6]
             if (marks[0] > playsSeen) {
                 playsSeen = marks[0]
                 playAsked(marks[3])
             }
             playsSeen = marks[0]
         })
+    }
+
+    // The stream settings read afresh now and then: an automatic bitrate follows the screen the
+    // window is on
+    Timer {
+        interval: 2000
+        repeat: true
+        running: ariumWeb.visible
+        onTriggered: ariumWeb.streamJson = arium.streamSettings(window)
     }
 
     // The newest build Arium keeps, as the page last heard it: downloaded if newer than this app
